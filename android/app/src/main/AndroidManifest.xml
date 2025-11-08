@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
       android:name=".MainApplication"
@@ -17,11 +19,33 @@
         android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
         android:launchMode="singleTask"
         android:windowSoftInputMode="adjustResize"
-        android:exported="true">
+        android:screenOrientation="landscape"
+        android:exported="true"
+        android:theme="@style/AppTheme.NoActionBar.FullScreen">
         <intent-filter>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
+      
+      <!-- Device Admin Receiver для киоск режима -->
+      <receiver
+          android:name=".KioskAdminReceiver"
+          android:permission="android.permission.BIND_DEVICE_ADMIN"
+          android:exported="true">
+          <meta-data
+              android:name="android.app.device_admin"
+              android:resource="@xml/device_admin_receiver" />
+          <intent-filter>
+              <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+          </intent-filter>
+      </receiver>
+
+      <!-- Boot Receiver для автозапуска -->
+      <receiver android:name=".BootReceiver" android:enabled="true" android:exported="true">
+          <intent-filter>
+              <action android:name="android.intent.action.BOOT_COMPLETED" />
+          </intent-filter>
+      </receiver>
     </application>
 </manifest>
