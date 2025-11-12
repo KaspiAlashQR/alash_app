@@ -16,6 +16,7 @@ import HomeScreen from './screens/HomeScreen';
 import AuthScreen from './screens/AuthScreen';
 import AdminPanelScreen from './screens/AdminPanelScreen';
 import AddProductScreen from './screens/AddProductScreen';
+import InitialSetupScreen from './screens/InitialSetupScreen';
 
 // Utils
 import { KioskModule } from './utils/KioskModule';
@@ -66,6 +67,13 @@ function App(): React.JSX.Element {
             component={HomeScreen}
             options={{
               title: 'Главная',
+            }}
+          />
+          <Stack.Screen 
+            name="InitialSetup" 
+            component={InitialSetupScreen}
+            options={{
+              title: 'Первичная настройка',
             }}
           />
           <Stack.Screen 

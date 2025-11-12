@@ -3,6 +3,7 @@ export type RootStackParamList = {
   Auth: undefined;
   AdminPanel: undefined;
   AddProduct: undefined;
+  InitialSetup: undefined;
 };
 
 declare global {

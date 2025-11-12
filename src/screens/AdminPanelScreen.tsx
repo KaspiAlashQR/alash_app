@@ -1,8 +1,12 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Image, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Alert, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { KioskModule } from '../utils/KioskModule';
+import { alashCloudAPI } from '../api/client';
+import { deviceStorage } from '../api/storage';
+import { Product, isApiError, isProductsResponse } from '../api/types';
+import ProductCard from '../components/ProductCard';
 
 type RootStackParamList = {
   Home: undefined;
@@ -20,29 +24,70 @@ interface AdminPanelScreenProps {
 const { width } = Dimensions.get('window');
 const isTablet = width > 600;
 
-// Фиктивные данные товаров
-const mockProducts = [
-  {
-    id: 1,
-    name: 'Товар 1',
-    price: '1000.00',
-    image: null,
-  },
-  {
-    id: 2,
-    name: 'Товар 2', 
-    price: '2500.00',
-    image: null,
-  },
-  {
-    id: 3,
-    name: 'Товар 3',
-    price: '750.00', 
-    image: null,
-  },
-];
-
 const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [deviceId, setDeviceId] = useState<number | null>(null);
+
+  useEffect(() => {
+    loadDeviceAndProducts();
+  }, []);
+
+  const loadDeviceAndProducts = async () => {
+    try {
+      const deviceInfo = await deviceStorage.getDeviceInfo();
+      if (deviceInfo) {
+        setDeviceId(deviceInfo.device_id);
+        await loadProducts(deviceInfo.device_id);
+      } else {
+        Alert.alert('Ошибка', 'Информация об устройстве не найдена');
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки данных:', error);
+      Alert.alert('Ошибка', 'Не удалось загрузить данные');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadProducts = async (deviceId: number) => {
+    try {
+      const response = await alashCloudAPI.getDevicePrices(deviceId);
+      
+      if (isApiError(response)) {
+        Alert.alert('Ошибка загрузки товаров', response.error);
+        return;
+      }
+      
+      if (isProductsResponse(response)) {
+        setProducts(response.rows);
+      } else {
+        Alert.alert('Ошибка', 'Неожиданный формат ответа сервера');
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки товаров:', error);
+      Alert.alert('Ошибка', 'Не удалось загрузить товары');
+    }
+  };
+
+  const handleRefresh = () => {
+    if (deviceId) {
+      setIsLoading(true);
+      loadProducts(deviceId).finally(() => setIsLoading(false));
+    }
+  };
+
+  const handleProductPress = (product: Product) => {
+    Alert.alert(
+      product.name,
+      `${product.name2}\n\nЦена: ${product.amount} ₸`,
+      [
+        { text: 'Редактировать', onPress: () => {} },
+        { text: 'Удалить', onPress: () => {}, style: 'destructive' },
+        { text: 'Отмена', style: 'cancel' }
+      ]
+    );
+  };
   const handleLogout = async () => {
     try {
       // Включаем киоск режим обратно при выходе из админки
@@ -106,51 +151,41 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
           </Text>
 
           {/* Products Grid */}
-          <View style={styles.productsGrid}>
-            {mockProducts.map((product) => (
-              <View key={product.id} style={[styles.productCard, isTablet && styles.productCardTablet]}>
-                {/* Product Image Placeholder */}
-                <View style={[styles.productImagePlaceholder, isTablet && styles.productImagePlaceholderTablet]}>
-                  <Text style={[styles.imagePlaceholderText, isTablet && styles.imagePlaceholderTextTablet]}>
-                    📷
-                  </Text>
-                </View>
-                
-                {/* Product Info */}
-                <View style={styles.productInfo}>
-                  <Text style={[styles.productName, isTablet && styles.productNameTablet]}>
-                    {product.name}
-                  </Text>
-                  <Text style={[styles.productPrice, isTablet && styles.productPriceTablet]}>
-                    {product.price} ₸
-                  </Text>
-                </View>
-                
-                {/* Delete Button */}
-                <TouchableOpacity
-                  onPress={() => handleDeleteProduct(product.id)}
-                  style={[styles.deleteButton, isTablet && styles.deleteButtonTablet]}
-                >
-                  <Text style={[styles.deleteButtonText, isTablet && styles.deleteButtonTextTablet]}>
-                    Удалить
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ))}
+          {isLoading && products.length === 0 ? (
+            <View style={[styles.productCard, isTablet && styles.productCardTablet, { justifyContent: 'center', alignItems: 'center' }]}>
+              <Text style={[styles.productName, isTablet && styles.productNameTablet]}>Загрузка товаров...</Text>
+            </View>
+          ) : products.length === 0 ? (
+            <View style={[styles.productCard, isTablet && styles.productCardTablet, { justifyContent: 'center', alignItems: 'center' }]}>
+              <Text style={[styles.productName, isTablet && styles.productNameTablet]}>Товары не найдены</Text>
+              <TouchableOpacity 
+                style={[styles.logoutButton, isTablet && styles.logoutButtonTablet, { marginTop: 10 }]} 
+                onPress={handleRefresh}
+              >
+                <Text style={[styles.logoutButtonText, isTablet && styles.logoutButtonTextTablet]}>Обновить</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.productsGrid}>
+              {products.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onPress={() => handleProductPress(product)}
+                />
+              ))}
 
-            {/* Add Product Card */}
-            <TouchableOpacity
-              onPress={handleAddProduct}
-              style={[styles.addProductCard, isTablet && styles.addProductCardTablet]}
-            >
-              <Text style={[styles.addProductIcon, isTablet && styles.addProductIconTablet]}>
-                ➕
-              </Text>
-              <Text style={[styles.addProductText, isTablet && styles.addProductTextTablet]}>
-                Добавить товар
-              </Text>
-            </TouchableOpacity>
-          </View>
+              {/* Add Product Card */}
+              <TouchableOpacity
+                onPress={handleAddProduct}
+                style={[styles.addProductCard, isTablet && styles.addProductCardTablet]}
+              >
+                <Text style={[styles.addProductText, isTablet && styles.addProductTextTablet]}>
+                  + Добавить товар
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

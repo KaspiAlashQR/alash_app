@@ -1,0 +1,174 @@
+ИНСТРУКЦИИ ДЛЯ ТЕСТИРОВАНИЯ API С ТОКЕНОМ В POSTMAN
+
+API TOKEN: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcGlfYWNjZXNzIiwiaWF0IjoxNzAwMDAwMDAwfQ.a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2
+
+BASE URL: http://127.0.0.1:8111
+
+================================================================================
+1. ПОЛУЧИТЬ ЦЕНЫ УСТРОЙСТВА
+================================================================================
+
+URL: http://127.0.0.1:8111/data/getprices/53
+Method: GET
+
+Headers:
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcGlfYWNjZXNzIiwiaWF0IjoxNzAwMDAwMDAwfQ.a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2
+
+Body: Нет
+
+Ожидаемый ответ:
+{
+    "rows": [
+        {
+            "id": 1,
+            "name": "Кофе",
+            "amount": 250.00,
+            "pid": 53,
+            "name2": "Американо",
+            "url": "https://cloudinary.com/..."
+        }
+    ]
+}
+
+================================================================================
+2. ДОБАВИТЬ НОВУЮ ЦЕНУ
+================================================================================
+
+URL: http://127.0.0.1:8111/data/addprice
+Method: POST
+
+Headers:
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcGlfYWNjZXNzIiwiaWF0IjoxNzAwMDAwMDAwfQ.a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2
+Content-Type: application/json
+
+Body (JSON):
+{
+    "pid": 53,
+    "name": "Капучино",
+    "amount": "350.00",
+    "name2": "Кофе с молоком",
+    "image_data": null
+}
+
+Пример с изображением (base64):
+{
+    "pid": 53,
+    "name": "Латте",
+    "amount": "400.00",
+    "name2": "Кофе латте с молочной пенкой",
+    "image_data": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcU..."
+}
+
+Ожидаемый ответ: ID новой записи (число) или 0 при ошибке
+
+================================================================================
+3. РЕДАКТИРОВАТЬ ЦЕНУ
+================================================================================
+
+URL: http://127.0.0.1:8111/data/editprice
+Method: POST
+
+Headers:
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcGlfYWNjZXNzIiwiaWF0IjoxNzAwMDAwMDAwfQ.a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2
+Content-Type: application/json
+
+Body (JSON):
+{
+    "pid": 25,
+    "name": "Эспрессо",
+    "amount": "200.00",
+    "name2": "Крепкий кофе эспрессо",
+    "image_data": null
+}
+
+Примечание: pid здесь это ID записи цены для редактирования, а не ID устройства
+
+Ожидаемый ответ: true при успехе, false при ошибке
+
+================================================================================
+4. УДАЛИТЬ ЦЕНУ
+================================================================================
+
+URL: http://127.0.0.1:8111/data/deleteprice/25
+Method: POST
+
+Headers:
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcGlfYWNjZXNzIiwiaWF0IjoxNzAwMDAwMDAwfQ.a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2
+
+Body: Нет
+
+Примечание: 25 в URL это ID записи цены для удаления
+
+Ожидаемый ответ: true при успехе, false при ошибке
+
+================================================================================
+5. ПОЛУЧИТЬ ИНФОРМАЦИЮ ОБ УСТРОЙСТВЕ
+================================================================================
+
+URL: http://127.0.0.1:8111/data/devinfo/123456
+Method: GET
+
+Headers:
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcGlfYWNjZXNzIiwiaWF0IjoxNzAwMDAwMDAwfQ.a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2
+
+Body: Нет
+
+Примечание: 123456 в URL это machid устройства
+
+Ожидаемый ответ:
+{
+    "device_id": 53,
+    "device_name": "Кофемашина №1",
+    "machid": "123456",
+    "bin": "950504300572"
+}
+
+Возможные ошибки:
+- 401 Unauthorized: {"error": "Unauthorized"}
+- 404 Not Found: {"error": "Устройство не найдено"} или {"error": "Счет не найден"}
+- 500 Server Error: {"OK": false}
+
+================================================================================
+НАСТРОЙКА В POSTMAN
+================================================================================
+
+Шаг 1: Создать новый запрос
+Шаг 2: Выбрать метод (GET или POST)
+Шаг 3: Ввести URL
+Шаг 4: Перейти на вкладку "Headers"
+Шаг 5: Добавить заголовок:
+   Key: Authorization
+   Value: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcGlfYWNjZXNzIiwiaWF0IjoxNzAwMDAwMDAwfQ.a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2
+
+Для POST запросов дополнительно:
+Шаг 6: Добавить заголовок Content-Type: application/json
+Шаг 7: Перейти на вкладку "Body"
+Шаг 8: Выбрать "raw" и "JSON"
+Шаг 9: Вставить JSON данные
+
+================================================================================
+ТЕСТИРОВАНИЕ АВТОРИЗАЦИИ
+================================================================================
+
+1. Запрос БЕЗ токена:
+   Убрать заголовок Authorization
+   Ожидаемый результат: 401 Unauthorized
+
+2. Запрос с НЕВЕРНЫМ токеном:
+   Authorization: Bearer invalid_token_here
+   Ожидаемый результат: 401 Unauthorized
+
+3. Запрос с ПРАВИЛЬНЫМ токеном:
+   Ожидаемый результат: Корректные данные
+
+================================================================================
+ПРИМЕЧАНИЯ
+================================================================================
+
+- Все эндпоинты поддерживают как сессионную аутентификацию (для веб-интерфейса), 
+  так и токен-аутентификацию (для внешних API)
+- image_data должна быть в формате base64 без префикса "data:image/..."
+- Максимальный размер изображения: 10MB
+- При редактировании цены старое изображение автоматически удаляется при загрузке нового
+
+================================================================================
