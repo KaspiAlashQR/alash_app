@@ -35,7 +35,6 @@ const InitialSetupScreen: React.FC<InitialSetupScreenProps> = ({ navigation }) =
   const [isLoading, setIsLoading] = useState(false);
 
   const handleMachineIdChange = (value: string) => {
-    // Разрешаем только цифры и буквы, ограничиваем длину
     const cleanValue = value.replace(/[^a-zA-Z0-9]/g, '');
     if (cleanValue.length <= 20) {
       setMachineId(cleanValue);
@@ -92,7 +91,7 @@ const InitialSetupScreen: React.FC<InitialSetupScreenProps> = ({ navigation }) =
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Заголовок */}
+
         <View style={styles.header}>
           <Text style={[styles.title, isTablet && styles.titleTablet]}>
             AlashCloud
@@ -102,7 +101,7 @@ const InitialSetupScreen: React.FC<InitialSetupScreenProps> = ({ navigation }) =
           </Text>
         </View>
 
-        {/* Форма ввода */}
+
         <View style={styles.form}>
           <Text style={[styles.label, isTablet && styles.labelTablet]}>
             ID машины
@@ -125,7 +124,7 @@ const InitialSetupScreen: React.FC<InitialSetupScreenProps> = ({ navigation }) =
             ID машины можно найти на корпусе устройства
           </Text>
 
-          {/* Кнопка подтверждения */}
+
           <TouchableOpacity
             style={[
               styles.submitButton,
@@ -145,7 +144,7 @@ const InitialSetupScreen: React.FC<InitialSetupScreenProps> = ({ navigation }) =
           </TouchableOpacity>
         </View>
 
-        {/* Нижний текст */}
+
         <View style={styles.footer}>
           <Text style={[styles.footerText, isTablet && styles.footerTextTablet]}>
             После подключения вы сможете управлять машиной через панель администратора

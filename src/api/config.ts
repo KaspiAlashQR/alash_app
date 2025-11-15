@@ -4,5 +4,10 @@ export const API_CONFIG = {
   ENDPOINTS: {
     DEVICE_INFO: '/data/devinfo',
     GET_PRICES: '/data/getprices',
+    ADD_PRICE: '/data/addprice',
+    EDIT_PRICE: '/data/editprice',
+    DELETE_PRICE: '/data/deleteprice',
+    NEW_ORDER: '/neword',
+    CHECK_ORDER: '/checkord',
   },
 };

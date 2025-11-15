@@ -1,6 +1,5 @@
 import { API_CONFIG } from './config';
-import { DeviceInfo, ApiResponse, isApiError, isDeviceInfo, Product, ProductsResponse, isProductsResponse } from './types';
-import { apiLogger } from '../utils/apiLogger';
+import { DeviceInfo, ApiResponse, isApiError, isDeviceInfo, Product, ProductsResponse, isProductsResponse, AddProductRequest, AddProductResponse, EditProductRequest } from './types';
 
 class AlashCloudAPI {
   private baseURL = API_CONFIG.BASE_URL;
@@ -17,14 +16,14 @@ class AlashCloudAPI {
       ...options.headers,
     };
 
-    apiLogger.logRequest(method, url, headers, options.body);
+
 
     try {
       const response = await fetch(url, { ...options, headers });
       const duration = Date.now() - startTime;
       const data = await response.json();
 
-      apiLogger.logResponse(url, response.status, response.statusText, data, duration);
+
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -41,7 +40,6 @@ class AlashCloudAPI {
       return data as T;
     } catch (error) {
       const duration = Date.now() - startTime;
-      apiLogger.logError(url, error, duration);
       
       if (error instanceof Error) {
         return { error: error.message } as ApiResponse<T>;
@@ -65,18 +63,58 @@ class AlashCloudAPI {
     const response = await this.getDeviceInfo(machid);
     
     if (isApiError(response)) {
-      apiLogger.logDeviceValidation(machid, false, undefined, response.error);
       return { isValid: false, error: response.error };
     }
     
     if (isDeviceInfo(response)) {
-      apiLogger.logDeviceValidation(machid, true, response);
       return { isValid: true, deviceInfo: response };
     }
     
     const error = 'Неожиданный формат ответа сервера';
-    apiLogger.logDeviceValidation(machid, false, undefined, error);
     return { isValid: false, error };
+  }
+
+  private validateImageSize(imageData: string): boolean {
+    const sizeInBytes = (imageData.length * 3) / 4;
+    const sizeInMB = sizeInBytes / (1024 * 1024);
+    return sizeInMB <= 10;
+  }
+
+  async addProduct(productData: AddProductRequest): Promise<ApiResponse<AddProductResponse>> {
+    if (productData.image_data && !this.validateImageSize(productData.image_data)) {
+      return { error: 'Размер изображения не должен превышать 10 МБ' };
+    }
+
+    return this.makeRequest<AddProductResponse>(API_CONFIG.ENDPOINTS.ADD_PRICE, {
+      method: 'POST',
+      body: JSON.stringify(productData),
+    });
+  }
+
+  async editProduct(productData: EditProductRequest): Promise<ApiResponse<boolean>> {
+    if (productData.image_data && !this.validateImageSize(productData.image_data)) {
+      return { error: 'Размер изображения не должен превышать 10 МБ' };
+    }
+
+    return this.makeRequest<boolean>(API_CONFIG.ENDPOINTS.EDIT_PRICE, {
+      method: 'POST',
+      body: JSON.stringify(productData),
+    });
+  }
+
+  async deleteProduct(productId: number): Promise<ApiResponse<boolean>> {
+    const endpoint = `${API_CONFIG.ENDPOINTS.DELETE_PRICE}/${productId}`;
+    return this.makeRequest<boolean>(endpoint, { method: 'POST' });
+  }
+
+  async createOrder(machid: string, sum: number): Promise<ApiResponse<{ id: number }>> {
+    const endpoint = `${API_CONFIG.ENDPOINTS.NEW_ORDER}/${encodeURIComponent(machid)}/${sum}`;
+    return this.makeRequest<{ id: number }>(endpoint, { method: 'GET' });
+  }
+
+  async checkOrder(orderId: number): Promise<ApiResponse<boolean>> {
+    const endpoint = `${API_CONFIG.ENDPOINTS.CHECK_ORDER}/${orderId}`;
+    return this.makeRequest<boolean>(endpoint, { method: 'GET' });
   }
 }
 

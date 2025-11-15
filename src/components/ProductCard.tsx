@@ -5,13 +5,16 @@ import { Product } from '../api/types';
 interface ProductCardProps {
   product: Product;
   onPress?: (product: Product) => void;
+  onEdit?: (product: Product) => void;
+  onDelete?: (product: Product) => void;
+  showActions?: boolean;
 }
 
 const { width } = Dimensions.get('window');
 const isTablet = width > 600;
 const cardWidth = isTablet ? (width - 80) / 3 - 16 : (width - 60) / 2 - 12;
 
-const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) => {
+const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, onEdit, onDelete, showActions = false }) => {
   const handlePress = () => {
     if (onPress) {
       onPress(product);
@@ -52,6 +55,24 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onPress }) => {
             {product.amount.toLocaleString('ru-RU')} ₸
           </Text>
         </View>
+        
+        {showActions && (
+          <View style={styles.actionsContainer}>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => onEdit && onEdit(product)}
+            >
+              <Text style={styles.editButtonText}>Редактировать</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => onDelete && onDelete(product)}
+            >
+              <Text style={styles.deleteButtonText}>Удалить</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -112,6 +133,38 @@ const styles = StyleSheet.create({
     fontSize: isTablet ? 18 : 16,
     fontWeight: 'bold',
     color: '#3182CE',
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    gap: 8,
+  },
+  editButton: {
+    backgroundColor: '#3182CE',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    flex: 1,
+  },
+  editButtonText: {
+    color: 'white',
+    fontSize: isTablet ? 12 : 11,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  deleteButton: {
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    flex: 1,
+  },
+  deleteButtonText: {
+    color: 'white',
+    fontSize: isTablet ? 12 : 11,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
 

@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, ActivityIndicator, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { deviceStorage } from '../api/storage';
-import { DeviceInfo } from '../api/types';
+import { DeviceInfo, Product, isApiError, isProductsResponse } from '../api/types';
+import { alashCloudAPI } from '../api/client';
+import { cartService } from '../services/cartService';
 import DeviceHeader from '../components/DeviceHeader';
+import CustomerProductCard from '../components/CustomerProductCard';
 
 type RootStackParamList = {
   Home: undefined;
   Auth: undefined;
   AdminPanel: undefined;
   InitialSetup: undefined;
+  Cart: undefined;
 };
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
@@ -26,9 +30,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [isSetupComplete, setIsSetupComplete] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [cartItemCount, setCartItemCount] = useState(0);
 
   useEffect(() => {
     checkDeviceSetup();
+    
+    // Подписываемся на изменения корзины
+    const unsubscribe = cartService.subscribe((cart) => {
+      setCartItemCount(cartService.getTotalItems());
+    });
+
+    return unsubscribe;
   }, []);
 
   const checkDeviceSetup = async () => {
@@ -43,6 +56,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         if (storedDeviceInfo) {
           setDeviceInfo(storedDeviceInfo);
           setIsSetupComplete(true);
+          await loadProducts(storedDeviceInfo.device_id);
         } else {
           await deviceStorage.clearAllData();
           setIsSetupComplete(false);
@@ -58,12 +72,37 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
   };
 
+  const loadProducts = async (deviceId: number) => {
+    try {
+      const response = await alashCloudAPI.getDevicePrices(deviceId);
+      
+      if (isApiError(response)) {
+        console.error('Ошибка API:', response.error);
+        Alert.alert('Ошибка', 'Не удалось загрузить товары');
+        return;
+      }
+
+      if (isProductsResponse(response)) {
+        setProducts(response.rows || []);
+      } else {
+        console.error('Неожиданный формат ответа:', response);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки товаров:', error);
+      Alert.alert('Ошибка', 'Не удалось загрузить товары');
+    }
+  };
+
   const handleAdminAccess = () => {
     navigation.navigate('Auth');
   };
 
   const handleGoToSetup = () => {
     navigation.navigate('InitialSetup');
+  };
+
+  const handleGoToCart = () => {
+    navigation.navigate('Cart');
   };
 
   // Показываем загрузку
@@ -106,39 +145,47 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     );
   }
 
-  // Основной экран с Header и кнопкой входа в админку
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header с информацией об устройстве */}
       {deviceInfo && (
         <DeviceHeader 
           deviceInfo={deviceInfo} 
           onAdminAccess={handleAdminAccess}
         />
       )}
-      
-      {/* Основной контент */}
-      <View style={styles.mainContent}>
-        <View style={styles.centerContainer}>
-          <Text style={[styles.deviceTitle, isTablet && styles.deviceTitleTablet]}>
-            {deviceInfo?.device_name}
-          </Text>
-          
-          <Text style={[styles.statusText, isTablet && styles.statusTextTablet]}>
-            Устройство готово к работе
-          </Text>
-          
-          {/* Кнопка входа в админку */}
-          <TouchableOpacity
-            style={[styles.adminButton, isTablet && styles.adminButtonTablet]}
-            onPress={handleAdminAccess}
-          >
-            <Text style={[styles.adminButtonText, isTablet && styles.adminButtonTextTablet]}>
-              Войти в панель управления
-            </Text>
-          </TouchableOpacity>
+
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.contentSection}>
+          {products.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyText, isTablet && styles.emptyTextTablet]}>
+                Нет товаров для отображения
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.productsGrid}>
+              {products.map((product) => (
+                <CustomerProductCard
+                  key={product.id}
+                  product={product}
+                />
+              ))}
+            </View>
+          )}
         </View>
-      </View>
+      </ScrollView>
+
+      {cartItemCount > 0 && (
+        <TouchableOpacity
+          style={[styles.cartButton, isTablet && styles.cartButtonTablet]}
+          onPress={handleGoToCart}
+        >
+          <Text style={[styles.cartButtonText, isTablet && styles.cartButtonTextTablet]}>
+            🛒 Корзина ({cartItemCount})
+          </Text>
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 };
@@ -207,57 +254,67 @@ const styles = StyleSheet.create({
   setupButtonTextTablet: {
     fontSize: 20,
   },
-  mainContent: {
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 80,
+  },
+  contentSection: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
   },
-  centerContainer: {
-    alignItems: 'center',
-  },
-  deviceTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1A202C',
+  emptyText: {
+    fontSize: 18,
+    color: '#64748b',
     textAlign: 'center',
-    marginBottom: 12,
   },
-  deviceTitleTablet: {
-    fontSize: 36,
-  },
-  statusText: {
-    fontSize: 16,
-    color: '#48BB78',
-    textAlign: 'center',
-    marginBottom: 48,
-  },
-  statusTextTablet: {
+  emptyTextTablet: {
     fontSize: 20,
   },
-  adminButton: {
-    backgroundColor: '#3182CE',
+  productsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    justifyContent: 'space-between',
+  },
+  cartButton: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    backgroundColor: '#16a34a',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  cartButtonTablet: {
     paddingHorizontal: 32,
     paddingVertical: 16,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    bottom: 32,
+    right: 32,
   },
-  adminButtonTablet: {
-    paddingHorizontal: 48,
-    paddingVertical: 20,
-    borderRadius: 16,
-  },
-  adminButtonText: {
-    color: '#FFFFFF',
+  cartButtonText: {
+    color: 'white',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
-  adminButtonTextTablet: {
-    fontSize: 20,
+  cartButtonTextTablet: {
+    fontSize: 18,
   },
 });
 

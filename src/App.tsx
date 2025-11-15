@@ -17,6 +17,8 @@ import AuthScreen from './screens/AuthScreen';
 import AdminPanelScreen from './screens/AdminPanelScreen';
 import AddProductScreen from './screens/AddProductScreen';
 import InitialSetupScreen from './screens/InitialSetupScreen';
+import CartScreen from './screens/CartScreen';
+import PaymentScreen from './screens/PaymentScreen';
 
 // Utils
 import { KioskModule } from './utils/KioskModule';
@@ -98,6 +100,22 @@ function App(): React.JSX.Element {
             options={{
               title: 'Добавить товар',
               gestureEnabled: true,
+            }}
+          />
+          <Stack.Screen 
+            name="Cart" 
+            component={CartScreen}
+            options={{
+              title: 'Корзина',
+              gestureEnabled: true,
+            }}
+          />
+          <Stack.Screen 
+            name="Payment"
+            component={PaymentScreen}
+            options={{
+              title: 'Оплата',
+              gestureEnabled: false,
             }}
           />
         </Stack.Navigator>

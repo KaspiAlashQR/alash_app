@@ -1,4 +1,3 @@
-// Типы для API ответов
 export interface DeviceInfo {
   device_id: number;
   device_name: string;
@@ -15,20 +14,54 @@ export interface Product {
   url?: string;
 }
 
+export interface CartItem {
+  product: Product;
+  quantity: number;
+}
+
+export interface Cart {
+  items: CartItem[];
+  total: number;
+}
+
 export interface ProductsResponse {
   rows: Product[];
 }
 
-// Типы для ошибок API
+export interface AddProductRequest {
+  pid: number;
+  name: string;
+  amount: string;
+  pin: string;
+  data: string;
+  name2: string;
+  image_data: string | null;
+}
+
+export interface EditProductRequest {
+  pid: number;
+  name: string;
+  amount: string;
+  pin: string;
+  data: string;
+  name2: string;
+  image_data: string | null;
+}
+
+export interface AddProductResponse {
+  id: number;
+}
+
+
 export interface ApiError {
   error: string;
   OK?: boolean;
 }
 
-// Общий тип для ответов API
+
 export type ApiResponse<T> = T | ApiError;
 
-// Типы для локального хранения
+
 export interface StoredDeviceData {
   deviceInfo: DeviceInfo;
   isFirstLaunch: boolean;
@@ -36,14 +69,14 @@ export interface StoredDeviceData {
   lastSync: string;
 }
 
-// Тип для проверки успешности ответа
+
 export function isApiError(response: any): response is ApiError {
-  return response && ('error' in response || response.OK === false);
+  return response && typeof response === 'object' && ('error' in response || response.OK === false);
 }
 
-// Тип для проверки успешности ответа устройства
+
 export function isDeviceInfo(response: any): response is DeviceInfo {
-  return response && 
+  return response && typeof response === 'object' && 
     'device_id' in response && 
     'device_name' in response && 
     'machid' in response && 
@@ -51,5 +84,5 @@ export function isDeviceInfo(response: any): response is DeviceInfo {
 }
 
 export function isProductsResponse(response: any): response is ProductsResponse {
-  return response && 'rows' in response && Array.isArray(response.rows);
+  return response && typeof response === 'object' && 'rows' in response && Array.isArray(response.rows);
 }

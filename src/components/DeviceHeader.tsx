@@ -39,29 +39,17 @@ const DeviceHeader: React.FC<DeviceHeaderProps> = ({ deviceInfo, onAdminAccess }
 
   return (
     <View style={styles.header}>
-      {/* Левая часть - ID устройства (кликабельный) */}
+      <Text style={[styles.time, isTablet && styles.timeTablet]}>
+        {formatTime(currentTime)}
+      </Text>
       <TouchableOpacity 
-        style={styles.leftSection}
         onPress={onAdminAccess}
         activeOpacity={0.7}
       >
-        <Text style={[styles.deviceId, isTablet && styles.deviceIdTablet]}>
-          ID: {deviceInfo.machid}
-        </Text>
-        <Text style={[styles.deviceName, isTablet && styles.deviceNameTablet]}>
-          {deviceInfo.device_name}
+        <Text style={[styles.time, isTablet && styles.timeTablet]}>
+          {deviceInfo.machid}
         </Text>
       </TouchableOpacity>
-
-      {/* Правая часть - Время и дата */}
-      <View style={styles.rightSection}>
-        <Text style={[styles.time, isTablet && styles.timeTablet]}>
-          {formatTime(currentTime)}
-        </Text>
-        <Text style={[styles.date, isTablet && styles.dateTablet]}>
-          {formatDate(currentTime)}
-        </Text>
-      </View>
     </View>
   );
 };
@@ -77,45 +65,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
-  leftSection: {
-    flex: 1,
-    alignItems: 'flex-start',
-  },
-  rightSection: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-  deviceId: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#3182CE',
-    marginBottom: 2,
-  },
-  deviceIdTablet: {
-    fontSize: 18,
-  },
-  deviceName: {
-    fontSize: 12,
-    color: '#4A5568',
-  },
-  deviceNameTablet: {
-    fontSize: 16,
-  },
   time: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#1A202C',
-    marginBottom: 2,
   },
   timeTablet: {
-    fontSize: 20,
-  },
-  date: {
-    fontSize: 12,
-    color: '#4A5568',
-  },
-  dateTablet: {
-    fontSize: 16,
+    fontSize: 22,
   },
 });
 

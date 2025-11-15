@@ -40,11 +40,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
 
     setIsLoading(true);
 
-    // Имитация проверки (можно добавить задержку для реалистичности)
     setTimeout(async () => {
       if (pin === CORRECT_PIN) {
         try {
-          // Отключаем киоск режим при входе в админку
           if (Platform.OS === 'android') {
             await KioskModule.disableKioskMode();
             console.log('Киоск режим отключен для админки');
@@ -74,17 +72,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Заголовок */}
-        <View style={styles.headerContainer}>
-          <Text style={[styles.title, isTablet && styles.titleTablet]}>
-            Авторизация
-          </Text>
-          <Text style={[styles.subtitle, isTablet && styles.subtitleTablet]}>
-            Введите PIN-код для доступа
-          </Text>
-        </View>
-
-        {/* Поле ввода PIN-кода */}
         <View style={styles.inputContainer}>
           <Text style={[styles.inputLabel, isTablet && styles.inputLabelTablet]}>
             PIN-код
@@ -95,18 +82,15 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
             onChangeText={handlePinChange}
             keyboardType="numeric"
             secureTextEntry
-            placeholder="••••••"
+            placeholder="••••••••••••"
             placeholderTextColor="#9ca3af"
             maxLength={6}
             accessibilityLabel="Поле ввода PIN-кода"
             editable={!isLoading}
           />
-          <Text style={[styles.inputHint, isTablet && styles.inputHintTablet]}>
-            {pin.length}/6 символов
-          </Text>
+
         </View>
 
-        {/* Кнопки */}
         <View style={styles.buttonsContainer}>
           <TouchableOpacity
             onPress={handleSubmit}
@@ -137,12 +121,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Подсказка */}
-        <View style={styles.hintContainer}>
-          <Text style={[styles.hintText, isTablet && styles.hintTextTablet]}>
-            Забыли PIN-код? Обратитесь к администратору
-          </Text>
-        </View>
+        
       </View>
     </SafeAreaView>
   );
@@ -158,28 +137,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
-  },
-  headerContainer: {
-    marginBottom: 48,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1e293b',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  titleTablet: {
-    fontSize: 40,
-  },
-  subtitle: {
-    fontSize: 18,
-    color: '#64748b',
-    textAlign: 'center',
-  },
-  subtitleTablet: {
-    fontSize: 24,
   },
   inputContainer: {
     width: '100%',

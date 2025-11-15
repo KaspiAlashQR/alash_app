@@ -1,29 +1,7 @@
 import { DeviceInfo, StoredDeviceData } from '../api/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Простой key-value storage (заменить на AsyncStorage позже)
-class SimpleStorage {
-  private storage: Map<string, string> = new Map();
 
-  async setItem(key: string, value: string): Promise<void> {
-    this.storage.set(key, value);
-  }
-
-  async getItem(key: string): Promise<string | null> {
-    return this.storage.get(key) || null;
-  }
-
-  async removeItem(key: string): Promise<void> {
-    this.storage.delete(key);
-  }
-
-  async clear(): Promise<void> {
-    this.storage.clear();
-  }
-}
-
-const simpleStorage = new SimpleStorage();
-
-// Ключи для хранения данных
 const STORAGE_KEYS = {
   DEVICE_DATA: 'device_data',
   FIRST_LAUNCH: 'first_launch',
@@ -33,7 +11,7 @@ const STORAGE_KEYS = {
 export class DeviceStorageService {
   async isFirstLaunch(): Promise<boolean> {
     try {
-      const firstLaunch = await simpleStorage.getItem(STORAGE_KEYS.FIRST_LAUNCH);
+      const firstLaunch = await AsyncStorage.getItem(STORAGE_KEYS.FIRST_LAUNCH);
       return firstLaunch !== 'false';
     } catch (error) {
       console.error('Error checking first launch:', error);
@@ -43,7 +21,7 @@ export class DeviceStorageService {
 
   async markFirstLaunchComplete(): Promise<void> {
     try {
-      await simpleStorage.setItem(STORAGE_KEYS.FIRST_LAUNCH, 'false');
+      await AsyncStorage.setItem(STORAGE_KEYS.FIRST_LAUNCH, 'false');
     } catch (error) {
       console.error('Error marking first launch complete:', error);
     }
@@ -58,8 +36,8 @@ export class DeviceStorageService {
         lastSync: new Date().toISOString(),
       };
       
-      await simpleStorage.setItem(STORAGE_KEYS.DEVICE_DATA, JSON.stringify(deviceData));
-      await simpleStorage.setItem(STORAGE_KEYS.SETUP_COMPLETE, 'true');
+      await AsyncStorage.setItem(STORAGE_KEYS.DEVICE_DATA, JSON.stringify(deviceData));
+      await AsyncStorage.setItem(STORAGE_KEYS.SETUP_COMPLETE, 'true');
     } catch (error) {
       console.error('Error saving device data:', error);
       throw new Error('Не удалось сохранить данные устройства');
@@ -68,7 +46,7 @@ export class DeviceStorageService {
 
   async loadDeviceData(): Promise<StoredDeviceData | null> {
     try {
-      const dataStr = await simpleStorage.getItem(STORAGE_KEYS.DEVICE_DATA);
+      const dataStr = await AsyncStorage.getItem(STORAGE_KEYS.DEVICE_DATA);
       return dataStr ? JSON.parse(dataStr) as StoredDeviceData : null;
     } catch (error) {
       console.error('Error loading device data:', error);
@@ -78,7 +56,7 @@ export class DeviceStorageService {
 
   async isSetupComplete(): Promise<boolean> {
     try {
-      const setupComplete = await simpleStorage.getItem(STORAGE_KEYS.SETUP_COMPLETE);
+      const setupComplete = await AsyncStorage.getItem(STORAGE_KEYS.SETUP_COMPLETE);
       return setupComplete === 'true';
     } catch (error) {
       console.error('Error checking setup status:', error);
@@ -98,7 +76,7 @@ export class DeviceStorageService {
 
   async clearAllData(): Promise<void> {
     try {
-      await simpleStorage.clear();
+      await AsyncStorage.clear();
     } catch (error) {
       console.error('Error clearing device data:', error);
       throw new Error('Не удалось очистить данные');
@@ -110,7 +88,7 @@ export class DeviceStorageService {
       const deviceData = await this.loadDeviceData();
       if (deviceData) {
         deviceData.lastSync = new Date().toISOString();
-        await simpleStorage.setItem(STORAGE_KEYS.DEVICE_DATA, JSON.stringify(deviceData));
+        await AsyncStorage.setItem(STORAGE_KEYS.DEVICE_DATA, JSON.stringify(deviceData));
       }
     } catch (error) {
       console.error('Error updating last sync:', error);
@@ -118,5 +96,4 @@ export class DeviceStorageService {
   }
 }
 
-// Экспортируем единственный экземпляр сервиса
 export const deviceStorage = new DeviceStorageService();
