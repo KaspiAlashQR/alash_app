@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
+import QRCode from 'react-native-qrcode-svg';
+import Sound from 'react-native-sound';
 import { RootStackParamList } from '../utils/navigation.types';
 import { alashCloudAPI } from '../api/client';
 import { cartService } from '../services/cartService';
@@ -26,8 +28,12 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   const { orderId, payUrl } = route.params;
   const [remaining, setRemaining] = useState(TIMEOUT_MS);
   const [paymentAmount, setPaymentAmount] = useState(0);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [unlockTimer, setUnlockTimer] = useState(30);
+  const [signalSent, setSignalSent] = useState(false);
   const timerRef = useRef<number | null>(null);
   const pollRef = useRef<number | null>(null);
+  const unlockTimerRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -59,9 +65,8 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
 
         if (response === true) {
           clearAll();
-          Alert.alert('Оплата подтверждена', 'Спасибо за покупку!', [
-            { text: 'OK', onPress: async () => { await cartService.clearCart(); navigation.navigate('Home'); } }
-          ]);
+          setPaymentSuccess(true);
+          playUnlockSignal();
         }
       } catch (err) {
         console.error('Ошибка проверки заказа:', err);
@@ -74,6 +79,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
     return () => {
       mountedRef.current = false;
       clearAll();
+      clearUnlockTimer();
     };
 
     function clearAll() {
@@ -88,6 +94,59 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
     }
   }, [orderId, navigation]);
 
+  const playUnlockSignal = () => {
+    const unlockSound = new Sound('unlock_signal.wav', Sound.MAIN_BUNDLE, (error) => {
+      if (error) {
+        console.log('Failed to load sound', error);
+        setSignalSent(false);
+        startUnlockTimer();
+        return;
+      }
+      unlockSound.play((success) => {
+        if (success) {
+          console.log('Unlock signal played successfully');
+          setSignalSent(true);
+          startUnlockTimer();
+        } else {
+          console.log('Unlock signal playback failed');
+          setSignalSent(false);
+          startUnlockTimer();
+        }
+        unlockSound.release();
+      });
+    });
+  };
+
+  const startUnlockTimer = () => {
+    setUnlockTimer(30);
+    unlockTimerRef.current = setInterval(() => {
+      setUnlockTimer(prev => {
+        if (prev <= 1) {
+          clearUnlockTimer();
+          goToHome();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000) as unknown as number;
+  };
+
+  const clearUnlockTimer = () => {
+    if (unlockTimerRef.current) {
+      clearInterval(unlockTimerRef.current as any);
+      unlockTimerRef.current = null;
+    }
+  };
+
+  const goToHome = async () => {
+    clearUnlockTimer();
+    await cartService.clearCart();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Home' }],
+    });
+  };
+
   const formatTime = (ms: number) => {
     const sec = Math.ceil(ms / 1000);
     const m = Math.floor(sec / 60);
@@ -95,48 +154,205 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  const qrImage = `https://chart.googleapis.com/chart?cht=qr&chs=${QR_SIZE}x${QR_SIZE}&chl=${encodeURIComponent(payUrl)}`;
-
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={[styles.amount, isTablet && styles.amountTablet]}>
-          {paymentAmount.toLocaleString('ru-RU')} ₸
-        </Text>
-        <View style={styles.qrContainer}>
-          <Image source={{ uri: qrImage }} style={styles.qrImage} />
-        </View>
-        <Text style={styles.infoText}>Отсканируйте QR код в Kaspi.kz</Text>
-        <Text style={styles.timer}>{formatTime(remaining)}</Text>
-        <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.navigate('Cart')}>
-          <Text style={styles.cancelButtonText}>Отмена и возврат в корзину</Text>
-        </TouchableOpacity>
+      <View style={[styles.content, paymentSuccess && styles.successContent]}>
+        {!paymentSuccess ? (
+          <>
+            <Text style={[styles.amount, isTablet && styles.amountTablet]}>
+              {paymentAmount.toLocaleString('ru-RU')} ₸
+            </Text>
+            
+            <QRCode
+              value={payUrl}
+              size={isTablet ? 280 : 220}
+              backgroundColor="white"
+              color="black"
+            />
+            
+            <Text style={[styles.infoText, isTablet && styles.infoTextTablet]}>
+              Отсканируйте QR код в Kaspi.kz
+            </Text>
+            
+            <Text style={[styles.timer, isTablet && styles.timerTablet]}>
+              {formatTime(remaining)}
+            </Text>
+            
+            <TouchableOpacity 
+              style={[styles.cancelButton, isTablet && styles.cancelButtonTablet]} 
+              onPress={() => navigation.navigate('Cart')}
+            >
+              <Text style={[styles.cancelButtonText, isTablet && styles.cancelButtonTextTablet]}>
+                Отмена и возврат в корзину
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Text style={[styles.successTitle, isTablet && styles.successTitleTablet]}>
+              Спасибо за покупку!
+            </Text>
+            
+            <Text style={[styles.successSubtitle, isTablet && styles.successSubtitleTablet]}>
+              Замок откроется на 30 секунд
+            </Text>
+            
+            {signalSent ? (
+              <Text style={[styles.unlockTimer, isTablet && styles.unlockTimerTablet]}>
+                {unlockTimer}
+              </Text>
+            ) : (
+              <Text style={[styles.waitingText, isTablet && styles.waitingTextTablet]}>
+                Открываем замок...
+              </Text>
+            )}
+            
+            <TouchableOpacity 
+              style={[styles.homeButton, isTablet && styles.homeButtonTablet]} 
+              onPress={goToHome}
+            >
+              <Text style={[styles.homeButtonText, isTablet && styles.homeButtonTextTablet]}>
+                Закрыть
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F7FAFC' },
-  content: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
-  amount: { fontSize: 32, fontWeight: 'bold', marginBottom: 30, color: '#16a34a' },
-  amountTablet: { fontSize: 42, marginBottom: 40 },
-  qrContainer: { 
-    backgroundColor: 'white', 
-    padding: 20, 
-    borderRadius: 12, 
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3
+  container: { 
+    flex: 1, 
+    backgroundColor: '#F7FAFC' 
   },
-  qrImage: { width: QR_SIZE, height: QR_SIZE },
-  infoText: { marginBottom: 12, fontSize: 16, color: '#4A5568', textAlign: 'center' },
-  timer: { marginBottom: 20, fontSize: 20, fontWeight: '700', color: '#1A202C' },
-  cancelButton: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 8, backgroundColor: '#e5e7eb' },
-  cancelButtonText: { color: '#1A202C', fontWeight: '600' },
+  content: { 
+    flex: 1, 
+    justifyContent: 'space-evenly', 
+    alignItems: 'center', 
+    paddingHorizontal: isTablet ? 40 : 20,
+    paddingVertical: isTablet ? 30 : 20
+  },
+  successContent: {
+    backgroundColor: '#16a34a'
+  },
+  amount: { 
+    fontSize: isTablet ? 36 : 28, 
+    fontWeight: 'bold', 
+    color: '#1A202C',
+    textAlign: 'center'
+  },
+  amountTablet: { 
+    fontSize: 48
+  },
+  qrImage: { 
+    width: isTablet ? QR_SIZE * 0.8 : QR_SIZE * 0.9, 
+    height: isTablet ? QR_SIZE * 0.8 : QR_SIZE * 0.9, 
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8
+  },
+  qrImageTablet: {
+    width: QR_SIZE,
+    height: QR_SIZE
+  },
+  infoText: { 
+    fontSize: isTablet ? 18 : 16, 
+    color: '#4A5568', 
+    textAlign: 'center',
+    paddingHorizontal: 20
+  },
+  infoTextTablet: {
+    fontSize: 20
+  },
+  timer: { 
+    fontSize: isTablet ? 28 : 22, 
+    fontWeight: '700', 
+    color: '#1A202C',
+    textAlign: 'center'
+  },
+  timerTablet: {
+    fontSize: 32
+  },
+  cancelButton: { 
+    paddingHorizontal: isTablet ? 32 : 24, 
+    paddingVertical: isTablet ? 16 : 12, 
+    borderRadius: isTablet ? 12 : 8, 
+    backgroundColor: '#e5e7eb'
+  },
+  cancelButtonTablet: {
+    paddingHorizontal: 40,
+    paddingVertical: 20
+  },
+  cancelButtonText: { 
+    color: '#1A202C', 
+    fontWeight: '600',
+    fontSize: isTablet ? 18 : 16,
+    textAlign: 'center'
+  },
+  cancelButtonTextTablet: {
+    fontSize: 20
+  },
+  successTitle: {
+    fontSize: isTablet ? 42 : 32,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 20
+  },
+  successTitleTablet: {
+    fontSize: 52
+  },
+  successSubtitle: {
+    fontSize: isTablet ? 24 : 18,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 30
+  },
+  successSubtitleTablet: {
+    fontSize: 28
+  },
+  unlockTimer: {
+    fontSize: isTablet ? 80 : 60,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 40
+  },
+  unlockTimerTablet: {
+    fontSize: 100
+  },
+  waitingText: {
+    fontSize: isTablet ? 24 : 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 40
+  },
+  waitingTextTablet: {
+    fontSize: 28
+  },
+  homeButton: {
+    paddingHorizontal: isTablet ? 40 : 32,
+    paddingVertical: isTablet ? 20 : 16,
+    borderRadius: isTablet ? 12 : 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 2,
+    borderColor: '#FFFFFF'
+  },
+  homeButtonTablet: {
+    paddingHorizontal: 50,
+    paddingVertical: 24
+  },
+  homeButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: isTablet ? 20 : 18,
+    textAlign: 'center'
+  },
+  homeButtonTextTablet: {
+    fontSize: 24
+  },
 });
 
 export default PaymentScreen;

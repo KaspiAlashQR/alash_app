@@ -133,8 +133,13 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
         return;
       }
 
-      const sum = Math.round(cart.total);
-      const createResp = await alashCloudAPI.createOrder(stored.machid, sum);
+      const sum = cart.items.reduce((total, item) => {
+        return total + (item.product.amount * item.quantity);
+      }, 0);
+      
+      console.log('Checkout sum:', sum, 'Cart total:', cart.total);
+      
+      const createResp = await alashCloudAPI.createOrder(stored.machid, Math.round(sum));
 
       if (!createResp || (createResp as any).error || typeof (createResp as any).id !== 'number') {
         Alert.alert('Ошибка', 'Не удалось создать заказ. Попробуйте ещё раз.');
