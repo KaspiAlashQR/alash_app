@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Alert, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Alert, ActivityIndicator, Platform, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { KioskModule } from '../utils/KioskModule';
+import { KioskModule, KioskStatus } from '../utils/KioskModule';
 import { alashCloudAPI } from '../api/client';
 import { deviceStorage } from '../api/storage';
 import { Product, isApiError, isProductsResponse, DeviceInfo } from '../api/types';
@@ -23,10 +23,24 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [deviceId, setDeviceId] = useState<number | null>(null);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
+  const [kioskModalVisible, setKioskModalVisible] = useState(false);
+  const [kioskStatus, setKioskStatus] = useState<KioskStatus>({
+    lockTaskMode: false,
+    fullscreenMode: false,
+    homeButtonBlocked: false,
+    backButtonBlocked: false,
+    menuButtonBlocked: false,
+    recentAppsBlocked: false,
+    landscapeOrientation: true,
+    keyguardDisabled: false,
+    defaultLauncher: false,
+    autoStart: false
+  });
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       loadDeviceAndProducts();
+      checkKioskStatus();
     });
 
     return unsubscribe;
@@ -77,6 +91,51 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
     if (deviceId) {
       loadProducts(deviceId);
     }
+  };
+
+  const checkKioskStatus = async () => {
+    try {
+      const status = await KioskModule.getKioskStatus();
+      setKioskStatus(status);
+    } catch (error) {
+      console.error('Ошибка проверки статуса киоска:', error);
+      // Fallback к простой проверке
+      try {
+        const isEnabled = await KioskModule.isKioskModeEnabled();
+        setKioskStatus(prev => ({
+          ...prev,
+          lockTaskMode: isEnabled,
+          fullscreenMode: isEnabled,
+          homeButtonBlocked: isEnabled,
+          backButtonBlocked: isEnabled,
+          menuButtonBlocked: isEnabled,
+          recentAppsBlocked: isEnabled
+        }));
+      } catch (fallbackError) {
+        console.error('Ошибка fallback проверки:', fallbackError);
+      }
+    }
+  };
+
+  const handleToggleKioskMode = async () => {
+    try {
+      if (kioskStatus.lockTaskMode) {
+        await KioskModule.disableKioskMode();
+        Alert.alert('Успех', 'Киоск-режим отключен');
+      } else {
+        await KioskModule.enableKioskMode();
+        Alert.alert('Успех', 'Киоск-режим включен');
+      }
+      await checkKioskStatus();
+    } catch (error) {
+      console.error('Ошибка переключения киоск-режима:', error);
+      Alert.alert('Ошибка', 'Не удалось переключить киоск-режим');
+    }
+  };
+
+  const handleShowKioskModal = async () => {
+    await checkKioskStatus();
+    setKioskModalVisible(true);
   };
 
   const handleLogout = async () => {
@@ -157,6 +216,26 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
           AlashCloud Admin
         </Text>
         
+        <View style={styles.kioskControls}>
+          <TouchableOpacity
+            onPress={handleShowKioskModal}
+            style={[styles.kioskButton, isTablet && styles.kioskButtonTablet]}
+          >
+            <Text style={[styles.kioskButtonText, isTablet && styles.kioskButtonTextTablet]}>
+              📊 Статус Киоска
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            onPress={handleToggleKioskMode}
+            style={[styles.kioskToggleButton, kioskStatus.lockTaskMode && styles.kioskToggleButtonActive, isTablet && styles.kioskToggleButtonTablet]}
+          >
+            <Text style={[styles.kioskToggleButtonText, kioskStatus.lockTaskMode && styles.kioskToggleButtonTextActive, isTablet && styles.kioskToggleButtonTextTablet]}>
+              {kioskStatus.lockTaskMode ? '🔓 Отключить Киоск' : '🔒 Включить Киоск'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        
         <TouchableOpacity
           onPress={handleLogout}
           style={[styles.logoutButton, isTablet && styles.logoutButtonTablet]}
@@ -199,6 +278,153 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
           + Добавить товар
         </Text>
       </TouchableOpacity>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={kioskModalVisible}
+        onRequestClose={() => setKioskModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, isTablet && styles.modalContentTablet]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, isTablet && styles.modalTitleTablet]}>
+                🛡️ Статус Киоск-режима
+              </Text>
+              <TouchableOpacity
+                onPress={() => setKioskModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.modalScrollView}>
+              <View style={styles.statusItem}>
+                <Text style={[styles.statusLabel, isTablet && styles.statusLabelTablet]}>
+                  🔒 Lock Task Mode (Привязка к приложению)
+                </Text>
+                <View style={[styles.statusIndicator, kioskStatus.lockTaskMode && styles.statusActive]}>
+                  <Text style={[styles.statusText, kioskStatus.lockTaskMode && styles.statusTextActive]}>
+                    {kioskStatus.lockTaskMode ? 'АКТИВНО' : 'ОТКЛЮЧЕНО'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.statusItem}>
+                <Text style={[styles.statusLabel, isTablet && styles.statusLabelTablet]}>
+                  🖼️ Полноэкранный режим
+                </Text>
+                <View style={[styles.statusIndicator, kioskStatus.fullscreenMode && styles.statusActive]}>
+                  <Text style={[styles.statusText, kioskStatus.fullscreenMode && styles.statusTextActive]}>
+                    {kioskStatus.fullscreenMode ? 'АКТИВНО' : 'ОТКЛЮЧЕНО'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.statusItem}>
+                <Text style={[styles.statusLabel, isTablet && styles.statusLabelTablet]}>
+                  ⛔ Блокировка кнопки Home
+                </Text>
+                <View style={[styles.statusIndicator, kioskStatus.homeButtonBlocked && styles.statusActive]}>
+                  <Text style={[styles.statusText, kioskStatus.homeButtonBlocked && styles.statusTextActive]}>
+                    {kioskStatus.homeButtonBlocked ? 'ЗАБЛОКИРОВАНО' : 'РАЗРЕШЕНО'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.statusItem}>
+                <Text style={[styles.statusLabel, isTablet && styles.statusLabelTablet]}>
+                  ⛔ Блокировка кнопки Back
+                </Text>
+                <View style={[styles.statusIndicator, kioskStatus.backButtonBlocked && styles.statusActive]}>
+                  <Text style={[styles.statusText, kioskStatus.backButtonBlocked && styles.statusTextActive]}>
+                    {kioskStatus.backButtonBlocked ? 'ЗАБЛОКИРОВАНО' : 'РАЗРЕШЕНО'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.statusItem}>
+                <Text style={[styles.statusLabel, isTablet && styles.statusLabelTablet]}>
+                  ⛔ Блокировка кнопки Menu
+                </Text>
+                <View style={[styles.statusIndicator, kioskStatus.menuButtonBlocked && styles.statusActive]}>
+                  <Text style={[styles.statusText, kioskStatus.menuButtonBlocked && styles.statusTextActive]}>
+                    {kioskStatus.menuButtonBlocked ? 'ЗАБЛОКИРОВАНО' : 'РАЗРЕШЕНО'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.statusItem}>
+                <Text style={[styles.statusLabel, isTablet && styles.statusLabelTablet]}>
+                  ⛔ Блокировка Recent Apps
+                </Text>
+                <View style={[styles.statusIndicator, kioskStatus.recentAppsBlocked && styles.statusActive]}>
+                  <Text style={[styles.statusText, kioskStatus.recentAppsBlocked && styles.statusTextActive]}>
+                    {kioskStatus.recentAppsBlocked ? 'ЗАБЛОКИРОВАНО' : 'РАЗРЕШЕНО'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.statusItem}>
+                <Text style={[styles.statusLabel, isTablet && styles.statusLabelTablet]}>
+                  🔄 Горизонтальная ориентация
+                </Text>
+                <View style={[styles.statusIndicator, kioskStatus.landscapeOrientation && styles.statusActive]}>
+                  <Text style={[styles.statusText, kioskStatus.landscapeOrientation && styles.statusTextActive]}>
+                    {kioskStatus.landscapeOrientation ? 'ЗАФИКСИРОВАНО' : 'СВОБОДНО'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.statusItem}>
+                <Text style={[styles.statusLabel, isTablet && styles.statusLabelTablet]}>
+                  🚪 Отключение экрана блокировки
+                </Text>
+                <View style={[styles.statusIndicator, kioskStatus.keyguardDisabled && styles.statusActive]}>
+                  <Text style={[styles.statusText, kioskStatus.keyguardDisabled && styles.statusTextActive]}>
+                    {kioskStatus.keyguardDisabled ? 'ОТКЛЮЧЕН' : 'АКТИВНЫЙ'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.statusItem}>
+                <Text style={[styles.statusLabel, isTablet && styles.statusLabelTablet]}>
+                  🏠 Установка как дефолтный launcher
+                </Text>
+                <View style={[styles.statusIndicator, kioskStatus.defaultLauncher && styles.statusActive]}>
+                  <Text style={[styles.statusText, kioskStatus.defaultLauncher && styles.statusTextActive]}>
+                    {kioskStatus.defaultLauncher ? 'УСТАНОВЛЕНО' : 'НЕ УСТАНОВЛЕНО'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.statusItem}>
+                <Text style={[styles.statusLabel, isTablet && styles.statusLabelTablet]}>
+                  🚀 Автозапуск после перезагрузки
+                </Text>
+                <View style={[styles.statusIndicator, kioskStatus.autoStart && styles.statusActive]}>
+                  <Text style={[styles.statusText, kioskStatus.autoStart && styles.statusTextActive]}>
+                    {kioskStatus.autoStart ? 'АКТИВНО' : 'ОТКЛЮЧЕНО'}
+                  </Text>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                onPress={handleToggleKioskMode}
+                style={[styles.modalToggleButton, kioskStatus.lockTaskMode && styles.modalToggleButtonActive]}
+              >
+                <Text style={[styles.modalToggleButtonText, kioskStatus.lockTaskMode && styles.modalToggleButtonTextActive]}>
+                  {kioskStatus.lockTaskMode ? '🔓 Отключить Киоск-режим' : '🔒 Включить Киоск-режим'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 };
@@ -312,6 +538,176 @@ const styles = StyleSheet.create({
   },
   floatingAddButtonTextTablet: {
     fontSize: 18,
+  },
+  kioskControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  kioskButton: {
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  kioskButtonTablet: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
+  kioskButtonText: {
+    color: '#374151',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  kioskButtonTextTablet: {
+    fontSize: 18,
+  },
+  kioskToggleButton: {
+    backgroundColor: '#16a34a',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  kioskToggleButtonActive: {
+    backgroundColor: '#dc2626',
+  },
+  kioskToggleButtonTablet: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
+  kioskToggleButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  kioskToggleButtonTextActive: {
+    color: '#ffffff',
+  },
+  kioskToggleButtonTextTablet: {
+    fontSize: 18,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    maxHeight: '90%',
+    width: '100%',
+    maxWidth: 600,
+    elevation: 10,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  modalContentTablet: {
+    maxWidth: 800,
+    borderRadius: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  modalTitleTablet: {
+    fontSize: 22,
+  },
+  closeButton: {
+    padding: 8,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+  },
+  closeButtonText: {
+    fontSize: 16,
+    color: '#6b7280',
+    fontWeight: 'bold',
+  },
+  modalScrollView: {
+    maxHeight: 400,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  statusItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  statusLabel: {
+    fontSize: 14,
+    color: '#374151',
+    flex: 1,
+    paddingRight: 12,
+  },
+  statusLabelTablet: {
+    fontSize: 16,
+  },
+  statusIndicator: {
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  statusActive: {
+    backgroundColor: '#dcfce7',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  statusTextActive: {
+    color: '#16a34a',
+  },
+  modalFooter: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  modalToggleButton: {
+    backgroundColor: '#16a34a',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalToggleButtonActive: {
+    backgroundColor: '#dc2626',
+  },
+  modalToggleButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalToggleButtonTextActive: {
+    color: '#ffffff',
   },
 });
 

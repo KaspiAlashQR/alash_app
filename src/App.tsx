@@ -6,6 +6,8 @@
  */
 
 import React, { useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAppVersion } from './utils/version';
 import { StatusBar, useColorScheme, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
@@ -31,7 +33,27 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
 
+  // Ключ для хранения версии
+  const VERSION_KEY = 'APP_VERSION';
+
   useEffect(() => {
+    // Проверка версии и очистка storage при обновлении
+    const checkAndClearStorageOnUpdate = async () => {
+      try {
+        const currentVersion = getAppVersion();
+        const storedVersion = await AsyncStorage.getItem(VERSION_KEY);
+        if (storedVersion !== currentVersion) {
+          // Очистить только нужные ключи, например корзину и авторизацию
+          await AsyncStorage.removeItem('@AlashCloud_Cart');
+          // ...добавьте другие ключи, если нужно
+          await AsyncStorage.setItem(VERSION_KEY, currentVersion);
+          console.log('Storage очищен из-за обновления версии:', currentVersion);
+        }
+      } catch (e) {
+        console.warn('Ошибка при проверке версии приложения:', e);
+      }
+    };
+    checkAndClearStorageOnUpdate();
     // Автоматически включаем киоск режим при запуске приложения
     const enableKioskOnStart = async () => {
       if (Platform.OS === 'android') {

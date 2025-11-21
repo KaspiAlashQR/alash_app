@@ -165,12 +165,27 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             </View>
           ) : (
             <View style={styles.productsGrid}>
-              {products.map((product) => (
-                <CustomerProductCard
-                  key={product.id}
-                  product={product}
-                />
-              ))}
+              {(() => {
+                const rows = [];
+                const perRow = 3;
+                for (let i = 0; i < products.length; i += perRow) {
+                  const rowItems = products.slice(i, i + perRow);
+                  rows.push(
+                    <View key={i} style={{ flexDirection: 'row', width: '100%', marginBottom: 16 }}>
+                      {rowItems.map((product) => (
+                        <View key={product.id} style={{ flex: 1, marginHorizontal: 4 }}>
+                          <CustomerProductCard product={product} />
+                        </View>
+                      ))}
+                      {/* Добавляем пустые View для выравнивания */}
+                      {Array.from({ length: perRow - rowItems.length }).map((_, idx) => (
+                        <View key={`empty-${i}-${idx}`} style={{ flex: 1, marginHorizontal: 4 }} />
+                      ))}
+                    </View>
+                  );
+                }
+                return rows;
+              })()}
             </View>
           )}
         </View>

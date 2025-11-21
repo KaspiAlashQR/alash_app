@@ -92,7 +92,9 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
     } else {
       cartService.updateQuantity(productId, newQuantity);
     }
-  };
+    // Явно обновляем состояние корзины после изменения
+    setCart(cartService.getCart());
+  }
 
   const handleIncrement = (productId: number, currentQuantity: number) => {
     handleQuantityChange(productId, currentQuantity + 1);

@@ -6,6 +6,8 @@ import android.content.Intent
 import android.util.Log
 import android.os.Handler
 import android.os.Looper
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
@@ -15,22 +17,33 @@ class BootReceiver : BroadcastReceiver() {
             Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_MY_PACKAGE_REPLACED,
             Intent.ACTION_PACKAGE_REPLACED -> {
-                Log.d("AlashKiosk", "Начинаем автозапуск приложения")
+                Log.d("AlashKiosk", "Проверяем статус Device Owner для автозапуска")
                 
-                // Запускаем с небольшой задержкой для надежности
-                Handler(Looper.getMainLooper()).postDelayed({
-                    startApp(context)
-                }, 3000) // 3 секунды задержки
+                // Проверяем Device Owner статус
+                val devicePolicyManager = context?.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+                val isDeviceOwner = devicePolicyManager?.isDeviceOwnerApp(context.packageName) ?: false
                 
-                // Также пробуем запустить сразу
-                startApp(context)
+                if (isDeviceOwner) {
+                    Log.d("AlashKiosk", "Device Owner активен - запускаем киоск-режим")
+                    
+                    // Запускаем с небольшой задержкой для надежности
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        startKioskMode(context)
+                    }, 3000) // 3 секунды задержки
+                    
+                    // Также пробуем запустить сразу
+                    startKioskMode(context)
+                } else {
+                    Log.d("AlashKiosk", "Device Owner НЕ активен - используется обычный лаунчер")
+                    // В обычном режиме Android сам запустит NormalLauncherActivity
+                }
             }
         }
     }
     
-    private fun startApp(context: Context?) {
+    private fun startKioskMode(context: Context?) {
         try {
-            Log.d("AlashKiosk", "Запускаем приложение...")
+            Log.d("AlashKiosk", "Запускаем киоск-режим (MainActivity)...")
             
             val launchIntent = Intent(context, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -42,10 +55,10 @@ class BootReceiver : BroadcastReceiver() {
             }
             
             context?.startActivity(launchIntent)
-            Log.d("AlashKiosk", "Приложение запущено успешно")
+            Log.d("AlashKiosk", "Киоск-режим запущен успешно")
             
         } catch (e: Exception) {
-            Log.e("AlashKiosk", "Ошибка автозапуска: ${e.message}")
+            Log.e("AlashKiosk", "Ошибка автозапуска киоска: ${e.message}")
         }
     }
 }
