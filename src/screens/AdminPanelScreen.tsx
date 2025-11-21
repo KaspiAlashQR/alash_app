@@ -79,8 +79,17 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
     }
   };
 
-  const handleLogout = () => {
-    navigation.navigate('Auth');
+  const handleLogout = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        console.log('Включаем киоск режим при выходе из админки');
+        await KioskModule.enableKioskMode();
+        console.log('Киоск режим включен');
+      }
+    } catch (error) {
+      console.warn('Ошибка включения киоск режима:', error);
+    }
+    navigation.navigate('Home');
   };
 
   const handleDeleteProduct = async (productId: number) => {
