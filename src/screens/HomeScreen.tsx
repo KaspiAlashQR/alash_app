@@ -44,6 +44,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    if (!isSetupComplete || !deviceInfo) return;
+
+    // Автообновление товаров каждые 30 секунд
+    const refreshInterval = setInterval(() => {
+      loadProducts(deviceInfo.device_id);
+    }, 30000);
+
+    return () => clearInterval(refreshInterval);
+  }, [isSetupComplete, deviceInfo]);
+
   const checkDeviceSetup = async () => {
     try {
       setIsLoading(true);

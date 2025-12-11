@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { DeviceInfo } from '../api/types';
+import { alashCloudAPI } from '../api/client';
+import { isApiError } from '../api/types';
 
 interface DeviceHeaderProps {
   deviceInfo: DeviceInfo;
@@ -12,6 +14,7 @@ const isTablet = width > 600;
 
 const DeviceHeader: React.FC<DeviceHeaderProps> = ({ deviceInfo, onAdminAccess }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [temperature, setTemperature] = useState<number | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -20,6 +23,20 @@ const DeviceHeader: React.FC<DeviceHeaderProps> = ({ deviceInfo, onAdminAccess }
 
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const fetchTemperature = async () => {
+      const response = await alashCloudAPI.getTemperature(deviceInfo.machid);
+      if (!isApiError(response) && 'value' in response) {
+        setTemperature(response.value);
+      }
+    };
+
+    fetchTemperature();
+    const tempInterval = setInterval(fetchTemperature, 60000); // Обновляем каждую минуту
+
+    return () => clearInterval(tempInterval);
+  }, [deviceInfo.machid]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('ru-RU', {
@@ -39,9 +56,16 @@ const DeviceHeader: React.FC<DeviceHeaderProps> = ({ deviceInfo, onAdminAccess }
 
   return (
     <View style={styles.header}>
-      <Text style={[styles.time, isTablet && styles.timeTablet]}>
-        {formatTime(currentTime)}
-      </Text>
+      <View style={styles.leftSection}>
+        <Text style={[styles.time, isTablet && styles.timeTablet]}>
+          {formatTime(currentTime)}
+        </Text>
+        {temperature !== null && (
+          <Text style={[styles.temperature, isTablet && styles.temperatureTablet]}>
+            {temperature}°C
+          </Text>
+        )}
+      </View>
       <TouchableOpacity 
         onPress={onAdminAccess}
         activeOpacity={0.7}
@@ -65,12 +89,25 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
+  leftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
   time: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#1A202C',
   },
   timeTablet: {
+    fontSize: 22,
+  },
+  temperature: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#3182CE',
+  },
+  temperatureTablet: {
     fontSize: 22,
   },
 });

@@ -116,6 +116,11 @@ class AlashCloudAPI {
     const endpoint = `${API_CONFIG.ENDPOINTS.CHECK_ORDER}/${orderId}`;
     return this.makeRequest<boolean>(endpoint, { method: 'GET' });
   }
+
+  async getTemperature(machid: string): Promise<ApiResponse<{ status: string; machid: string; value: number }>> {
+    const endpoint = `/update_temp/${machid}`;
+    return this.makeRequest<{ status: string; machid: string; value: number }>(endpoint, { method: 'GET' });
+  }
 }
 
 export const alashCloudAPI = new AlashCloudAPI();
