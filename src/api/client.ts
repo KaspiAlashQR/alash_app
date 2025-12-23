@@ -9,22 +9,30 @@ class AlashCloudAPI {
     const startTime = Date.now();
     const url = `${this.baseURL}${endpoint}`;
     const method = options.method || 'GET';
-    
     const headers = {
       'Authorization': `Bearer ${this.token}`,
       'Content-Type': 'application/json',
       ...options.headers,
     };
-
-
-
     try {
       const response = await fetch(url, { ...options, headers });
       const duration = Date.now() - startTime;
-      const data = await response.json();
-
-
-
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        console.error('Ошибка парсинга JSON из API:', text);
+        throw new Error('Ошибка парсинга JSON из API');
+      }
+      // Логируем все полученные данные
+      console.log('API response:', {
+        url,
+        method,
+        status: response.status,
+        duration,
+        data,
+      });
       if (!response.ok) {
         if (response.status === 401) {
           throw new Error('Unauthorized - проверьте токен авторизации');
@@ -36,15 +44,18 @@ class AlashCloudAPI {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
       }
-
       return data as T;
     } catch (error) {
       const duration = Date.now() - startTime;
-      
+      console.error('API error:', {
+        url,
+        method,
+        duration,
+        error: error instanceof Error ? error.message : error,
+      });
       if (error instanceof Error) {
         return { error: error.message } as ApiResponse<T>;
       }
-      
       return { error: 'Неизвестная ошибка сети' } as ApiResponse<T>;
     }
   }
@@ -55,8 +66,18 @@ class AlashCloudAPI {
   }
 
   async getDevicePrices(deviceId: number): Promise<ApiResponse<ProductsResponse>> {
-    const endpoint = `${API_CONFIG.ENDPOINTS.GET_PRICES}/${deviceId}`;
-    return this.makeRequest<ProductsResponse>(endpoint, { method: 'GET' });
+    const endpoint = `${API_CONFIG.ENDPOINTS.GET_PRICES}/${deviceId}/${API_CONFIG.SESSION_ID}`;
+    const response = await this.makeRequest<any>(endpoint, { method: 'GET' });
+    // Если rows — строка, парсим её как JSON
+    if (response && typeof response.rows === 'string') {
+      try {
+        response.rows = JSON.parse(response.rows);
+      } catch (e) {
+        console.error('Ошибка парсинга rows:', response.rows);
+        return { error: 'Ошибка парсинга списка товаров' };
+      }
+    }
+    return response as ProductsResponse;
   }
 
   async validateDevice(machid: string): Promise<{ isValid: boolean; deviceInfo?: DeviceInfo; error?: string }> {

@@ -9,9 +9,9 @@ export interface Product {
   id: number;
   name: string;
   amount: number;
-  pid: number;
   name2: string;
-  url?: string;
+  url: string;
+  category?: string;
 }
 
 export interface CartItem {

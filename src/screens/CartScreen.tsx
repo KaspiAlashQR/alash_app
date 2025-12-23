@@ -189,7 +189,7 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#fff' }] }>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}

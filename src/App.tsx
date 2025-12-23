@@ -8,7 +8,7 @@
 import React, { useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAppVersion } from './utils/version';
-import { StatusBar, useColorScheme, Platform } from 'react-native';
+import { StatusBar, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -31,7 +31,6 @@ import { RootStackParamList } from './utils/navigation.types';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
 
   // Ключ для хранения версии
   const VERSION_KEY = 'APP_VERSION';
@@ -71,14 +70,13 @@ function App(): React.JSX.Element {
 
   return (
     <SafeAreaProvider>
-      <StatusBar 
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'} 
+      <StatusBar
         backgroundColor="transparent"
         translucent
         hidden={true} // Скрываем статус бар в киоск режиме
       />
       <NavigationContainer>
-        <Stack.Navigator 
+        <Stack.Navigator
           initialRouteName="Home"
           screenOptions={{
             headerShown: false, // Убираем стандартные заголовки для кастомного дизайна
@@ -86,53 +84,45 @@ function App(): React.JSX.Element {
             animation: 'slide_from_right',
           }}
         >
-          <Stack.Screen 
-            name="Home" 
+          <Stack.Screen
+            name="Home"
             component={HomeScreen}
             options={{
               title: 'Главная',
             }}
           />
-          <Stack.Screen 
-            name="InitialSetup" 
+          <Stack.Screen
+            name="InitialSetup"
             component={InitialSetupScreen}
             options={{
               title: 'Первичная настройка',
             }}
           />
-          <Stack.Screen 
-            name="Auth" 
+          <Stack.Screen
+            name="Auth"
             component={AuthScreen}
             options={{
               title: 'Авторизация',
               gestureDirection: 'horizontal',
             }}
           />
-          <Stack.Screen 
-            name="AdminPanel" 
+          <Stack.Screen
+            name="AdminPanel"
             component={AdminPanelScreen}
             options={{
               title: 'Панель администратора',
               gestureEnabled: false, // Запрещаем свайп назад с панели админа
             }}
           />
-          <Stack.Screen 
-            name="AddProduct" 
-            component={AddProductScreen}
-            options={{
-              title: 'Добавить товар',
-              gestureEnabled: true,
-            }}
-          />
-          <Stack.Screen 
-            name="Cart" 
+          <Stack.Screen
+            name="Cart"
             component={CartScreen}
             options={{
               title: 'Корзина',
               gestureEnabled: true,
             }}
           />
-          <Stack.Screen 
+          <Stack.Screen
             name="Payment"
             component={PaymentScreen}
             options={{

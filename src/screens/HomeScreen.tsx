@@ -8,6 +8,7 @@ import { alashCloudAPI } from '../api/client';
 import { cartService } from '../services/cartService';
 import DeviceHeader from '../components/DeviceHeader';
 import CustomerProductCard from '../components/CustomerProductCard';
+import CategorySidebar from '../components/CategorySidebar';
 
 type RootStackParamList = {
   Home: undefined;
@@ -26,12 +27,27 @@ interface HomeScreenProps {
 const { width } = Dimensions.get('window');
 const isTablet = width > 600;
 
+
+// Категории только из товаров
+// import { Product } from '../api/types';
+type CategoryType = string;
+function getCategoriesFromProducts(products: Product[]): CategoryType[] {
+  const set = new Set<string>();
+  products.forEach((p: Product) => {
+    if (p.category && typeof p.category === 'string' && p.category.trim() !== '') {
+      set.add(p.category.trim());
+    }
+  });
+  return Array.from(set).sort((a, b) => a.localeCompare(b, 'ru'));
+}
+
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [isSetupComplete, setIsSetupComplete] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [cartItemCount, setCartItemCount] = useState(0);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
   useEffect(() => {
     checkDeviceSetup();
@@ -157,61 +173,65 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   }
 
 
+  // Категории только из товаров
+  const categories = getCategoriesFromProducts(products);
+  // Фильтрация
+  const filteredProducts = selectedCategoryId
+    ? products.filter((p) => p.category === selectedCategoryId)
+    : products;
+
   return (
-    <SafeAreaView style={styles.container}>
-      {deviceInfo && (
-        <DeviceHeader 
-          deviceInfo={deviceInfo} 
-          onAdminAccess={handleAdminAccess}
-        />
-      )}
-
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.contentSection}>
-          {products.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={[styles.emptyText, isTablet && styles.emptyTextTablet]}>
-                Нет товаров для отображения
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.productsGrid}>
-              {(() => {
-                const rows = [];
-                const perRow = 3;
-                for (let i = 0; i < products.length; i += perRow) {
-                  const rowItems = products.slice(i, i + perRow);
-                  rows.push(
-                    <View key={i} style={{ flexDirection: 'row', width: '100%', marginBottom: 16 }}>
-                      {rowItems.map((product) => (
-                        <View key={product.id} style={{ flex: 1, marginHorizontal: 4 }}>
-                          <CustomerProductCard product={product} />
-                        </View>
-                      ))}
-                      {/* Добавляем пустые View для выравнивания */}
-                      {Array.from({ length: perRow - rowItems.length }).map((_, idx) => (
-                        <View key={`empty-${i}-${idx}`} style={{ flex: 1, marginHorizontal: 4 }} />
-                      ))}
-                    </View>
-                  );
-                }
-                return rows;
-              })()}
-            </View>
-          )}
-        </View>
-      </ScrollView>
-
-      {cartItemCount > 0 && (
-        <TouchableOpacity
-          style={[styles.cartButton, isTablet && styles.cartButtonTablet]}
-          onPress={handleGoToCart}
-        >
-          <Text style={[styles.cartButtonText, isTablet && styles.cartButtonTextTablet]}>
-            🛒 Корзина ({cartItemCount})
-          </Text>
-        </TouchableOpacity>
-      )}
+    <SafeAreaView style={[styles.container, { backgroundColor: '#f8fafc', flexDirection: 'row' }] }>
+      <CategorySidebar
+        categories={['Все', ...categories]}
+        selectedCategory={selectedCategoryId}
+        onSelect={cat => setSelectedCategoryId(cat === 'Все' ? null : cat)}
+        isTablet={isTablet}
+        style={{ alignSelf: 'flex-start' }}
+      />
+      <View style={{ flex: 1 }}>
+        {deviceInfo && (
+          <DeviceHeader 
+            deviceInfo={deviceInfo} 
+            onAdminAccess={handleAdminAccess}
+          />
+        )}
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.contentSection}>
+            {filteredProducts.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, isTablet && styles.emptyTextTablet]}>
+                  Нет товаров для отображения
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.productsGrid}>
+                {filteredProducts.map((product, idx) => (
+                  <View
+                    key={product.id}
+                    style={[
+                      styles.productGridItem,
+                      idx % 2 === 0 ? { marginRight: 12 } : null,
+                    ]}
+                  >
+                    <CustomerProductCard product={product} />
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        </ScrollView>
+        {cartItemCount > 0 && (
+          <TouchableOpacity
+            style={[styles.cartButton, isTablet && styles.cartButtonTablet]}
+            onPress={handleGoToCart}
+          >
+            <Text style={[styles.cartButtonText, isTablet && styles.cartButtonTextTablet]}>
+              🛒 Корзина ({cartItemCount})
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </SafeAreaView>
   );
 };
@@ -219,17 +239,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7FAFC',
+    backgroundColor: '#fff',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#fff',
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#4A5568',
+    color: '#6b7280',
   },
   loadingTextTablet: {
     fontSize: 20,
@@ -239,11 +260,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
+    backgroundColor: '#fff',
   },
   welcomeTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1A202C',
+    color: '#3b82f6',
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -252,7 +274,7 @@ const styles = StyleSheet.create({
   },
   setupMessage: {
     fontSize: 16,
-    color: '#4A5568',
+    color: '#6b7280',
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 32,
@@ -262,10 +284,13 @@ const styles = StyleSheet.create({
     lineHeight: 30,
   },
   setupButton: {
-    backgroundColor: '#3182CE',
+    backgroundColor: '#3b82f6',
     paddingHorizontal: 32,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 14,
+    shadowColor: '#3b82f6',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   setupButtonTablet: {
     paddingHorizontal: 40,
@@ -273,7 +298,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   setupButtonText: {
-    color: '#FFFFFF',
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -291,6 +316,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 16,
+    backgroundColor: '#f9fafb',
+    borderRadius: 20,
+    margin: 12,
+    shadowColor: '#e5e7eb',
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
   },
   emptyContainer: {
     flex: 1,
@@ -299,7 +330,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: '#64748b',
+    color: '#6b7280',
     textAlign: 'center',
   },
   emptyTextTablet: {
@@ -308,23 +339,27 @@ const styles = StyleSheet.create({
   productsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 8,
+  },
+  productGridItem: {
+    width: '48%',
+    marginBottom: 16,
   },
   cartButton: {
     position: 'absolute',
     bottom: 24,
     right: 24,
-    backgroundColor: '#16a34a',
+    backgroundColor: '#22c55e',
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 12,
-    shadowColor: '#000',
+    borderRadius: 14,
+    shadowColor: '#22c55e',
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 8,
   },
@@ -335,7 +370,7 @@ const styles = StyleSheet.create({
     right: 32,
   },
   cartButtonText: {
-    color: 'white',
+    color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },

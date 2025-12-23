@@ -210,31 +210,11 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#fff' }] }>
       <View style={styles.navHeader}>
         <Text style={[styles.logoText, isTablet && styles.logoTextTablet]}>
           AlashCloud Admin
         </Text>
-        
-        <View style={styles.kioskControls}>
-          <TouchableOpacity
-            onPress={handleShowKioskModal}
-            style={[styles.kioskButton, isTablet && styles.kioskButtonTablet]}
-          >
-            <Text style={[styles.kioskButtonText, isTablet && styles.kioskButtonTextTablet]}>
-              📊 Статус Киоска
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            onPress={handleToggleKioskMode}
-            style={[styles.kioskToggleButton, kioskStatus.lockTaskMode && styles.kioskToggleButtonActive, isTablet && styles.kioskToggleButtonTablet]}
-          >
-            <Text style={[styles.kioskToggleButtonText, kioskStatus.lockTaskMode && styles.kioskToggleButtonTextActive, isTablet && styles.kioskToggleButtonTextTablet]}>
-              {kioskStatus.lockTaskMode ? '🔓 Отключить Киоск' : '🔒 Включить Киоск'}
-            </Text>
-          </TouchableOpacity>
-        </View>
         
         <TouchableOpacity
           onPress={handleLogout}
@@ -270,9 +250,10 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
         </View>
       </ScrollView>
 
+      {/* Кнопка скрыта по требованию, оставить для будущего */}
       <TouchableOpacity
-        onPress={() => navigation.navigate('AddProduct', { mode: 'add' })}
-        style={[styles.floatingAddButton, isTablet && styles.floatingAddButtonTablet]}
+        style={[styles.floatingAddButton, { display: 'none' }, isTablet && styles.floatingAddButtonTablet]}
+        disabled
       >
         <Text style={[styles.floatingAddButtonText, isTablet && styles.floatingAddButtonTextTablet]}>
           + Добавить товар
@@ -432,7 +413,8 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1e293b',
+    backgroundColor: '#fff',
+    paddingTop: 0,
   },
   scrollView: {
     flex: 1,
@@ -442,44 +424,60 @@ const styles = StyleSheet.create({
     paddingBottom: 80, // Space for floating button
   },
   navHeader: {
-    backgroundColor: '#16a34a',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
+    backgroundColor: '#fff',
+    paddingHorizontal: 0,
+    paddingVertical: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    borderBottomWidth: 0,
+    borderBottomColor: 'transparent',
+    marginBottom: 8,
   },
   logoText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: '#22223b',
+    fontSize: 28,
+    fontWeight: '700',
     flex: 1,
+    letterSpacing: 0.2,
+    textAlign: 'left',
   },
   logoTextTablet: {
     fontSize: 24,
   },
   logoutButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: '#3b82f6',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 6,
   },
   logoutButtonTablet: {
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
   logoutButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 14,
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 18,
+    letterSpacing: 0.2,
   },
   logoutButtonTextTablet: {
     fontSize: 16,
   },
   contentSection: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 24,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    backgroundColor: 'transparent',
+    borderRadius: 0,
+    margin: 0,
+    shadowColor: 'transparent',
+    shadowOpacity: 0,
+    shadowRadius: 0,
   },
   centerContainer: {
     flex: 1,
@@ -496,8 +494,9 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: '#64748b',
+    color: '#6b7280',
     textAlign: 'center',
+    fontWeight: '500',
   },
   emptyTextTablet: {
     fontSize: 20,
@@ -512,16 +511,16 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 24,
     right: 24,
-    backgroundColor: '#16a34a',
+    backgroundColor: '#22c55e',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: '#22c55e',
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 8,
   },
@@ -532,7 +531,7 @@ const styles = StyleSheet.create({
     right: 32,
   },
   floatingAddButtonText: {
-    color: 'white',
+    color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },
