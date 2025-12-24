@@ -189,7 +189,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         isTablet={isTablet}
         style={{ alignSelf: 'flex-start' }}
       />
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, minWidth: 0 }}>
         {deviceInfo && (
           <DeviceHeader 
             deviceInfo={deviceInfo} 
@@ -205,18 +205,23 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 </Text>
               </View>
             ) : (
-              <View style={styles.productsGrid}>
-                {filteredProducts.map((product, idx) => (
-                  <View
-                    key={product.id}
-                    style={[
-                      styles.productGridItem,
-                      idx % 2 === 0 ? { marginRight: 12 } : null,
-                    ]}
-                  >
-                    <CustomerProductCard product={product} />
-                  </View>
-                ))}
+              <View style={{ width: 1000, marginLeft: 'auto', marginRight: 0 }}>
+                {(() => {
+                  const rows = [];
+                  for (let i = 0; i < filteredProducts.length; i += 2) {
+                    rows.push(
+                      <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 }}>
+                        <View style={{ width: 400, alignItems: 'center'}}>
+                          {filteredProducts[i] && <CustomerProductCard product={filteredProducts[i]} />}
+                        </View>
+                        <View style={{ width: 400 }}>
+                          {filteredProducts[i + 1] && <CustomerProductCard product={filteredProducts[i + 1]} />}
+                        </View>
+                      </View>
+                    );
+                  }
+                  return rows;
+                })()}
               </View>
             )}
           </View>
