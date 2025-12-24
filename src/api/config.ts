@@ -10,5 +10,6 @@ export const API_CONFIG = {
     DELETE_PRICE: '/data/deleteprice',
     NEW_ORDER: '/neword',
     CHECK_ORDER: '/checkord',
+    GO_ORDERS: '/go/orders',
   },
 };

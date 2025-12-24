@@ -8,6 +8,7 @@ import Sound from 'react-native-sound';
 import { RootStackParamList } from '../utils/navigation.types';
 import { alashCloudAPI } from '../api/client';
 import { cartService } from '../services/cartService';
+import { updateOrder } from '../api/orders';
 
 type PaymentScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Payment'>;
 type PaymentScreenRouteProp = RouteProp<RootStackParamList, 'Payment'>;
@@ -25,11 +26,11 @@ const POLL_INTERVAL_MS = 2000;
 const TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
 
 const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
-  const { orderId, payUrl } = route.params;
+  const { orderId, payUrl, internalOrderId } = route.params;
   const [remaining, setRemaining] = useState(TIMEOUT_MS);
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [unlockTimer, setUnlockTimer] = useState(30);
+  const [unlockTimer, setUnlockTimer] = useState(5);
   const [signalSent, setSignalSent] = useState(false);
   const timerRef = useRef<number | null>(null);
   const pollRef = useRef<number | null>(null);
@@ -50,8 +51,15 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
       setRemaining(left);
       if (left <= 0) {
         clearAll();
-        Alert.alert('Время ожидания истекло', 'Платеж не был подтвержден. Возврат в корзину.');
-        navigation.navigate('Cart');
+        (async () => {
+          const resp = await updateOrder(internalOrderId, { status: 'cancelled' });
+          console.log('updateOrder(cancelled) response:', JSON.stringify(resp));
+          if (!resp || resp.error) {
+            console.error('updateOrder error:', resp && resp.error ? resp.error : resp);
+          }
+          navigation.navigate('Cart');
+        })();
+        // Alert removed
       }
     }, 1000) as unknown as number;
 
@@ -66,7 +74,14 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
         if (response === true) {
           clearAll();
           setPaymentSuccess(true);
-          playUnlockSignal();
+          (async () => {
+            const resp = await updateOrder(internalOrderId, { status: 'paid' });
+            console.log('updateOrder(paid) response:', JSON.stringify(resp));
+            if (!resp || resp.error) {
+              console.error('updateOrder error:', resp && resp.error ? resp.error : resp);
+            }
+            playUnlockSignal();
+          })();
         }
       } catch (err) {
         console.error('Ошибка проверки заказа:', err);
@@ -118,7 +133,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   };
 
   const startUnlockTimer = () => {
-    setUnlockTimer(30);
+    setUnlockTimer(5);
     unlockTimerRef.current = setInterval(() => {
       setUnlockTimer(prev => {
         if (prev <= 1) {
@@ -141,6 +156,11 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   const goToHome = async () => {
     clearUnlockTimer();
     await cartService.clearCart();
+    const resp = await updateOrder(internalOrderId, { status: 'cancelled' });
+    console.log('updateOrder(cancelled) response:', JSON.stringify(resp));
+    if (!resp || resp.error) {
+      console.error('updateOrder error:', resp && resp.error ? resp.error : resp);
+    }
     navigation.reset({
       index: 0,
       routes: [{ name: 'Home' }],
@@ -154,69 +174,81 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
+  const handleCancel = async () => {
+    // Остановить опрос и таймер
+    if (timerRef.current) {
+      clearInterval(timerRef.current as any);
+      timerRef.current = null;
+    }
+    if (pollRef.current) {
+      clearInterval(pollRef.current as any);
+      pollRef.current = null;
+    }
+    // Обновить статус заказа
+    const resp = await updateOrder(internalOrderId, { status: 'cancelled' });
+    console.log('updateOrder(cancelled) response:', JSON.stringify(resp));
+    if (!resp || resp.error) {
+      console.error('updateOrder error:', resp && resp.error ? resp.error : resp);
+    }
+    navigation.navigate('Cart');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={[styles.content, paymentSuccess && styles.successContent]}>
-        {!paymentSuccess ? (
-          <>
-            <Text style={[styles.amount, isTablet && styles.amountTablet]}>
-              {paymentAmount.toLocaleString('ru-RU')} ₸
-            </Text>
-            
-            <QRCode
-              value={payUrl}
-              size={isTablet ? 280 : 220}
-              backgroundColor="white"
-              color="black"
-            />
-            
-            <Text style={[styles.infoText, isTablet && styles.infoTextTablet]}>
-              Отсканируйте QR код в Kaspi.kz
-            </Text>
-            
-            <Text style={[styles.timer, isTablet && styles.timerTablet]}>
-              {formatTime(remaining)}
-            </Text>
-            
-            <TouchableOpacity 
-              style={[styles.cancelButton, isTablet && styles.cancelButtonTablet]} 
-              onPress={() => navigation.navigate('Cart')}
-            >
-              <Text style={[styles.cancelButtonText, isTablet && styles.cancelButtonTextTablet]}>
-                Отмена и возврат в корзину
+      <View style={styles.paymentWrapper}>
+        <View style={styles.card}>
+          {!paymentSuccess ? (
+            <>
+              <Text style={[styles.amount, isTablet && styles.amountTablet]}>
+                {paymentAmount.toLocaleString('ru-RU')} ₸
               </Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <Text style={[styles.successTitle, isTablet && styles.successTitleTablet]}>
-              Спасибо за покупку!
-            </Text>
-            
-            <Text style={[styles.successSubtitle, isTablet && styles.successSubtitleTablet]}>
-              Замок откроется на 30 секунд
-            </Text>
-            
-            {signalSent ? (
+              <View style={styles.qrWrapper}>
+                <QRCode
+                  value={payUrl}
+                  size={isTablet ? 220 : 180}
+                  backgroundColor="#fff"
+                  color="black"
+                />
+              </View>
+              <Text style={[styles.infoText, isTablet && styles.infoTextTablet]}>
+                Отсканируйте QR-код в Kaspi.kz
+              </Text>
+              <Text style={[styles.timer, isTablet && styles.timerTablet]}>
+                {formatTime(remaining)}
+              </Text>
+              <TouchableOpacity
+                style={[styles.cancelButton, isTablet && styles.cancelButtonTablet]}
+                onPress={handleCancel}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.cancelButtonText, isTablet && styles.cancelButtonTextTablet]}>
+                  Отмена и возврат в корзину
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.successTitle, isTablet && styles.successTitleTablet]}>
+                Спасибо за покупку!
+              </Text>
+              <Text style={[styles.successSubtitle, isTablet && styles.successSubtitleTablet]}>
+                Открываем замок на 5 секунд
+              </Text>
               <Text style={[styles.unlockTimer, isTablet && styles.unlockTimerTablet]}>
                 {unlockTimer}
               </Text>
-            ) : (
-              <Text style={[styles.waitingText, isTablet && styles.waitingTextTablet]}>
-                Открываем замок...
-              </Text>
-            )}
-            
-            <TouchableOpacity 
-              style={[styles.homeButton, isTablet && styles.homeButtonTablet]} 
-              onPress={goToHome}
-            >
-              <Text style={[styles.homeButtonText, isTablet && styles.homeButtonTextTablet]}>
-                Закрыть
-              </Text>
-            </TouchableOpacity>
-          </>
-        )}
+              <TouchableOpacity
+                style={[styles.homeButton, isTablet && styles.homeButtonTablet]}
+                onPress={goToHome}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.homeButtonText, isTablet && styles.homeButtonTextTablet]}>
+                  Закрыть
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -227,16 +259,40 @@ const styles = StyleSheet.create({
     flex: 1, 
     backgroundColor: '#F7FAFC' 
   },
-  content: { 
-    flex: 1, 
-    justifyContent: 'space-evenly', 
-    alignItems: 'center', 
-    paddingHorizontal: isTablet ? 40 : 20,
-    paddingVertical: isTablet ? 30 : 20
+  paymentWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f7fafc',
+    padding: 0,
+    minHeight: '100%',
+    minWidth: '100%',
   },
-  successContent: {
-    backgroundColor: '#16a34a'
+  card: {
+    width: isTablet ? 480 : 340,
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    paddingVertical: isTablet ? 40 : 28,
+    paddingHorizontal: isTablet ? 36 : 20,
+    alignItems: 'center',
+    shadowColor: '#3b82f6',
+    shadowOpacity: 0.10,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
+  qrWrapper: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 12,
+    marginVertical: 18,
+    shadowColor: '#3b82f6',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  successContent: {},
   amount: { 
     fontSize: isTablet ? 36 : 28, 
     fontWeight: 'bold', 
@@ -245,16 +301,6 @@ const styles = StyleSheet.create({
   },
   amountTablet: { 
     fontSize: 48
-  },
-  qrImage: { 
-    width: isTablet ? QR_SIZE * 0.8 : QR_SIZE * 0.9, 
-    height: isTablet ? QR_SIZE * 0.8 : QR_SIZE * 0.9, 
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8
-  },
-  qrImageTablet: {
-    width: QR_SIZE,
-    height: QR_SIZE
   },
   infoText: { 
     fontSize: isTablet ? 18 : 16, 
@@ -296,7 +342,7 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: isTablet ? 42 : 32,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#1A202C',
     textAlign: 'center',
     marginBottom: 20
   },
@@ -305,7 +351,7 @@ const styles = StyleSheet.create({
   },
   successSubtitle: {
     fontSize: isTablet ? 24 : 18,
-    color: '#FFFFFF',
+    color: '#1A202C',
     textAlign: 'center',
     marginBottom: 30
   },
@@ -315,7 +361,7 @@ const styles = StyleSheet.create({
   unlockTimer: {
     fontSize: isTablet ? 80 : 60,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#1A202C',
     textAlign: 'center',
     marginBottom: 40
   },
@@ -345,7 +391,7 @@ const styles = StyleSheet.create({
     paddingVertical: 24
   },
   homeButtonText: {
-    color: '#FFFFFF',
+    color: '#1A202C',
     fontWeight: '600',
     fontSize: isTablet ? 20 : 18,
     textAlign: 'center'

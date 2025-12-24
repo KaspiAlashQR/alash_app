@@ -86,3 +86,21 @@ export function isDeviceInfo(response: any): response is DeviceInfo {
 export function isProductsResponse(response: any): response is ProductsResponse {
   return response && typeof response === 'object' && 'rows' in response && Array.isArray(response.rows);
 }
+
+export interface GoOrderCreate {
+  amount: number;
+  device_id: number;
+  product_name: any; // JSON-объект: массив или объект с товарами
+  url?: string; // всегда ''
+}
+
+export interface GoOrderResponse {
+  OK: boolean;
+  id?: number;
+  error?: string;
+}
+
+export interface GoOrderUpdateFields {
+  status?: 'pending' | 'paid' | 'cancelled';
+  product_name?: any; // если потребуется обновлять
+}

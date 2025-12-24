@@ -7,7 +7,7 @@ export type RootStackParamList = {
   AddProduct: { mode: 'add' | 'edit'; product?: Product };
   InitialSetup: undefined;
   Cart: undefined;
-  Payment: { orderId: number; payUrl: string };
+  Payment: { orderId: number; payUrl: string; internalOrderId: number };
 };
 
 declare global {

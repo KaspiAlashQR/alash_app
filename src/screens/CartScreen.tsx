@@ -7,6 +7,7 @@ import { cartService } from '../services/cartService';
 import { Cart, CartItem } from '../api/types';
 import { alashCloudAPI } from '../api/client';
 import { deviceStorage } from '../api/storage';
+import { createInternalOrder } from '../api/orders';
 
 type CartScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Cart'>;
 
@@ -135,23 +136,29 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
         return;
       }
 
-      const sum = cart.items.reduce((total, item) => {
-        return total + (item.product.amount * item.quantity);
-      }, 0);
-      
-      console.log('Checkout sum:', sum, 'Cart total:', cart.total);
-      
-      const createResp = await alashCloudAPI.createOrder(stored.machid, Math.round(sum));
-
-      if (!createResp || (createResp as any).error || typeof (createResp as any).id !== 'number') {
-        Alert.alert('Ошибка', 'Не удалось создать заказ. Попробуйте ещё раз.');
+      const sum = cart.items.reduce((total, item) => total + (item.product.amount * item.quantity), 0);
+      const product_name = cart.items.map(item => ({ name: item.product.name, quantity: item.quantity }));
+      // 1. Создать внутренний заказ в БД
+      const internalOrderResp = await createInternalOrder({
+        amount: sum,
+        device_id: stored.device_id,
+        product_name,
+        url: '',
+      });
+      if (!internalOrderResp || internalOrderResp.error || typeof internalOrderResp.id !== 'number') {
+        Alert.alert('Ошибка', 'Не удалось создать внутренний заказ. Попробуйте ещё раз.');
         return;
       }
-
+      const internalOrderId = internalOrderResp.id;
+      // 2. Создать реальный платежный заказ
+      const createResp = await alashCloudAPI.createOrder(stored.machid, Math.round(sum));
+      if (!createResp || (createResp as any).error || typeof (createResp as any).id !== 'number') {
+        Alert.alert('Ошибка', 'Не удалось создать платежный заказ. Попробуйте ещё раз.');
+        return;
+      }
       const orderId = (createResp as any).id as number;
       const payUrl = `https://kaspi.kz/pay/AlashCoffeeNew?16246=${orderId}`;
-
-      navigation.navigate('Payment', { orderId, payUrl });
+      navigation.navigate('Payment', { orderId, payUrl, internalOrderId });
     } catch (err) {
       console.error('checkout error', err);
       Alert.alert('Ошибка', 'Произошла ошибка при оформлении заказа');
