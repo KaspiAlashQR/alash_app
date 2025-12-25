@@ -5,6 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import QRCode from 'react-native-qrcode-svg';
 import Sound from 'react-native-sound';
+import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
 import { RootStackParamList } from '../utils/navigation.types';
 import { alashCloudAPI } from '../api/client';
 import { cartService } from '../services/cartService';
@@ -24,18 +25,25 @@ const isTablet = width > 600;
 const QR_SIZE = isTablet ? 320 : 260;
 const POLL_INTERVAL_MS = 2000;
 const TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+const UNLOCK_TIMER_SECONDS = 10; // Изменено с 5 на 10 секунд
 
 const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   const { orderId, payUrl, internalOrderId } = route.params;
   const [remaining, setRemaining] = useState(TIMEOUT_MS);
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [unlockTimer, setUnlockTimer] = useState(5);
+  const [unlockTimer, setUnlockTimer] = useState(UNLOCK_TIMER_SECONDS);
   const [signalSent, setSignalSent] = useState(false);
   const timerRef = useRef<number | null>(null);
   const pollRef = useRef<number | null>(null);
   const unlockTimerRef = useRef<number | null>(null);
+  const cameraTimerRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
+
+  // Состояние камеры
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const frontCamera = useCameraDevice('front');
 
   useEffect(() => {
     // Получаем сумму из корзины
@@ -95,6 +103,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
       mountedRef.current = false;
       clearAll();
       clearUnlockTimer();
+      stopCamera();
     };
 
     function clearAll() {
@@ -109,12 +118,51 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
     }
   }, [orderId, navigation]);
 
+  const startCamera = async () => {
+    try {
+      // Проверяем разрешения
+      if (!hasPermission) {
+        const granted = await requestPermission();
+        if (!granted) {
+          console.log('Нет разрешения на использование камеры');
+          return;
+        }
+      }
+
+      if (!frontCamera) {
+        console.log('Фронтальная камера не найдена');
+        return;
+      }
+
+      setIsCameraActive(true);
+      console.log('Камера включена');
+
+      // Автоматически выключить камеру через 10 секунд
+      cameraTimerRef.current = setTimeout(() => {
+        setIsCameraActive(false);
+        console.log('Камера автоматически выключена через 10 секунд');
+      }, UNLOCK_TIMER_SECONDS * 1000) as unknown as number;
+    } catch (error) {
+      console.error('Ошибка при включении камеры:', error);
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraTimerRef.current) {
+      clearTimeout(cameraTimerRef.current);
+      cameraTimerRef.current = null;
+    }
+    setIsCameraActive(false);
+    console.log('Камера выключена');
+  };
+
   const playUnlockSignal = () => {
     const unlockSound = new Sound('unlock_signal.wav', Sound.MAIN_BUNDLE, (error) => {
       if (error) {
         console.log('Failed to load sound', error);
         setSignalSent(false);
         startUnlockTimer();
+        startCamera(); // Включаем камеру
         return;
       }
       unlockSound.play((success) => {
@@ -122,10 +170,12 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
           console.log('Unlock signal played successfully');
           setSignalSent(true);
           startUnlockTimer();
+          startCamera(); // Включаем камеру
         } else {
           console.log('Unlock signal playback failed');
           setSignalSent(false);
           startUnlockTimer();
+          startCamera(); // Включаем камеру даже если звук не сработал
         }
         unlockSound.release();
       });
@@ -133,7 +183,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   };
 
   const startUnlockTimer = () => {
-    setUnlockTimer(5);
+    setUnlockTimer(UNLOCK_TIMER_SECONDS);
     unlockTimerRef.current = setInterval(() => {
       setUnlockTimer(prev => {
         if (prev <= 1) {
@@ -155,6 +205,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
 
   const goToHome = async () => {
     clearUnlockTimer();
+    stopCamera();
     await cartService.clearCart();
     const resp = await updateOrder(internalOrderId, { status: 'cancelled' });
     console.log('updateOrder(cancelled) response:', JSON.stringify(resp));
@@ -195,6 +246,19 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Превью камеры в правом верхнем углу */}
+      {isCameraActive && frontCamera && hasPermission && (
+        <View style={styles.cameraPreview}>
+          <Camera
+            style={styles.camera}
+            device={frontCamera}
+            isActive={isCameraActive}
+            photo={false}
+            video={false}
+          />
+        </View>
+      )}
+
       <View style={styles.paymentWrapper}>
         <View style={styles.card}>
           {!paymentSuccess ? (
@@ -232,7 +296,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
                 Спасибо за покупку!
               </Text>
               <Text style={[styles.successSubtitle, isTablet && styles.successSubtitleTablet]}>
-                Открываем замок на 5 секунд
+                Открываем замок на 10 секунд
               </Text>
               <Text style={[styles.unlockTimer, isTablet && styles.unlockTimerTablet]}>
                 {unlockTimer}
@@ -398,6 +462,30 @@ const styles = StyleSheet.create({
   },
   homeButtonTextTablet: {
     fontSize: 24
+  },
+  cameraPreview: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    width: 320,
+    height: 240,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 3,
+    borderColor: '#22c55e',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 10,
+    zIndex: 1000,
+  },
+  camera: {
+    width: '100%',
+    height: '100%',
   },
 });
 

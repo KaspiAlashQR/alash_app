@@ -138,19 +138,19 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
 
       const sum = cart.items.reduce((total, item) => total + (item.product.amount * item.quantity), 0);
       const product_name = cart.items.map(item => ({ name: item.product.name, quantity: item.quantity }));
-      // 1. Создать внутренний заказ в БД
+
       const internalOrderResp = await createInternalOrder({
         amount: sum,
-        device_id: stored.device_id,
+        device_id: parseInt(stored.machid),
         product_name,
         url: '',
       });
+
       if (!internalOrderResp || internalOrderResp.error || typeof internalOrderResp.id !== 'number') {
         Alert.alert('Ошибка', 'Не удалось создать внутренний заказ. Попробуйте ещё раз.');
         return;
       }
       const internalOrderId = internalOrderResp.id;
-      // 2. Создать реальный платежный заказ
       const createResp = await alashCloudAPI.createOrder(stored.machid, Math.round(sum));
       if (!createResp || (createResp as any).error || typeof (createResp as any).id !== 'number') {
         Alert.alert('Ошибка', 'Не удалось создать платежный заказ. Попробуйте ещё раз.');

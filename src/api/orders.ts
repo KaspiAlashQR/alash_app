@@ -13,12 +13,22 @@ export async function createInternalOrder(order: GoOrderCreate): Promise<GoOrder
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...order,
-          product_name: order.product_name, // JSON-объект
-          url: order.url ?? '',
+          amount: order.amount,
+          device_id: order.device_id,
+          product_name: order.product_name,
+          url: order.url || '',
         }),
       }
     );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { 
+        OK: false, 
+        error: `HTTP ${response.status}: ${errorText || response.statusText}` 
+      };
+    }
+
     const data = await response.json();
     return data;
   } catch (error) {

@@ -6,9 +6,11 @@ import { deviceStorage } from '../api/storage';
 import { DeviceInfo, Product, isApiError, isProductsResponse } from '../api/types';
 import { alashCloudAPI } from '../api/client';
 import { cartService } from '../services/cartService';
+
 import DeviceHeader from '../components/DeviceHeader';
 import CustomerProductCard from '../components/CustomerProductCard';
 import CategorySidebar from '../components/CategorySidebar';
+
 
 type RootStackParamList = {
   Home: undefined;
@@ -196,6 +198,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             onAdminAccess={handleAdminAccess}
           />
         )}
+
+
+
+
+
+
+
+
+
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           <View style={styles.contentSection}>
             {filteredProducts.length === 0 ? (
