@@ -200,7 +200,7 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
           </Text>
         </View>
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#16a34a" />
+          <ActivityIndicator size="large" color="#FF8A50" />
           <Text style={[styles.loadingText, isTablet && styles.loadingTextTablet]}>
             Загрузка...
           </Text>
@@ -511,11 +511,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 24,
     right: 24,
-    backgroundColor: '#22c55e',
+    backgroundColor: '#FF6B35',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
-    shadowColor: '#22c55e',
+    shadowColor: '#FF6B35',
     shadowOffset: {
       width: 0,
       height: 4,
@@ -568,7 +568,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   kioskToggleButton: {
-    backgroundColor: '#16a34a',
+    backgroundColor: '#FF8A50',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 6,
@@ -683,7 +683,7 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   statusTextActive: {
-    color: '#16a34a',
+    color: '#FF8A50',
   },
   modalFooter: {
     paddingHorizontal: 20,
@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#e5e7eb',
   },
   modalToggleButton: {
-    backgroundColor: '#16a34a',
+    backgroundColor: '#FF8A50',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',

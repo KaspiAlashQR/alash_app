@@ -216,18 +216,27 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 </Text>
               </View>
             ) : (
-              <View style={{ width: 1000, marginLeft: 'auto', marginRight: 0 }}>
+              <View style={{ width: 800, marginLeft: 'auto', marginRight: 0 }}>
                 {(() => {
                   const rows = [];
-                  for (let i = 0; i < filteredProducts.length; i += 2) {
+                  for (let i = 0; i < filteredProducts.length; i += 3) {
                     rows.push(
                       <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 }}>
-                        <View style={{ width: 400, alignItems: 'center'}}>
-                          {filteredProducts[i] && <CustomerProductCard product={filteredProducts[i]} />}
-                        </View>
-                        <View style={{ width: 400 }}>
-                          {filteredProducts[i + 1] && <CustomerProductCard product={filteredProducts[i + 1]} />}
-                        </View>
+                        {filteredProducts[i] && (
+                          <View style={{ width: 240, marginRight: 40 }}>
+                            <CustomerProductCard product={filteredProducts[i]} />
+                          </View>
+                        )}
+                        {filteredProducts[i + 1] && (
+                          <View style={{ width: 240, marginRight: 40 }}>
+                            <CustomerProductCard product={filteredProducts[i + 1]} />
+                          </View>
+                        )}
+                        {filteredProducts[i + 2] && (
+                          <View style={{ width: 240 }}>
+                            <CustomerProductCard product={filteredProducts[i + 2]} />
+                          </View>
+                        )}
                       </View>
                     );
                   }
@@ -243,7 +252,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             onPress={handleGoToCart}
           >
             <Text style={[styles.cartButtonText, isTablet && styles.cartButtonTextTablet]}>
-              🛒 Корзина ({cartItemCount})
+              Перейти к оплате
             </Text>
           </TouchableOpacity>
         )}
@@ -364,34 +373,34 @@ const styles = StyleSheet.create({
   },
   cartButton: {
     position: 'absolute',
-    bottom: 24,
-    right: 24,
-    backgroundColor: '#22c55e',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 14,
-    shadowColor: '#22c55e',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FF6B35',
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: '#FF6B35',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: -4,
     },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 10,
   },
   cartButtonTablet: {
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    bottom: 32,
-    right: 32,
+    paddingVertical: 24,
   },
   cartButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   cartButtonTextTablet: {
-    fontSize: 18,
+    fontSize: 24,
   },
 });
 

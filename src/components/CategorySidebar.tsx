@@ -14,16 +14,16 @@ interface CategorySidebarProps {
 const iconNames: Record<string, string> = {
   'Напитки': 'cup',
   'Снеки': 'food-apple',
+  'Сэндвичи и бутерброды': 'food',
   'Сладости': 'candy',
-  'Кондитерка': 'cake-variant',
-  'Молочка': 'cow',
-  'Хлеб': 'bread-slice',
-  'Готовое': 'food-fork-drink',
-  'Бакалея': 'basket',
-  'Гигиена': 'face-woman',
-  'Для дома': 'home-variant',
+  'Молочные продукты': 'cow',
+  'Йогурты и десерты': 'food-variant',
+  'Фрукты и овощи': 'fruit-cherries',
   'Мороженое': 'ice-cream',
-  'ЗОЖ': 'leaf',
+  'Хлебобулочные изделия': 'bread-slice',
+  'Готовые блюда': 'food-fork-drink',
+  'Здоровое питание': 'leaf',
+  'Салаты': 'salad',
   'Все': 'apps',
 };
 
@@ -54,15 +54,15 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({ categories, selectedC
             >
               <View style={[
                 styles.categoryIconWrapper,
-                { width: categoryIconSize, height: categoryIconSize, borderRadius: categoryIconSize / 2, backgroundColor: isActive ? '#e0e7ff' : '#f3f4f6', borderWidth: isActive ? 2 : 0, borderColor: isActive ? '#16a34a' : 'transparent' }
+                { width: categoryIconSize, height: categoryIconSize, borderRadius: categoryIconSize / 2, backgroundColor: isActive ? '#FFE8DC' : '#f3f4f6', borderWidth: isActive ? 2 : 0, borderColor: isActive ? '#FF8A50' : 'transparent' }
               ]}>
                 <MaterialCommunityIcons
                   name={iconName}
                   size={categoryIconFont}
-                  color={isActive ? '#16a34a' : '#94a3b8'}
+                  color={isActive ? '#FF8A50' : '#94a3b8'}
                 />
               </View>
-              <Text style={[styles.categoryLabel, { fontSize: categoryLabelFont, color: isActive ? '#16a34a' : '#22223b' }]} numberOfLines={2}>{cat}</Text>
+              <Text style={[styles.categoryLabel, { fontSize: categoryLabelFont, color: isActive ? '#FF8A50' : '#22223b' }]} numberOfLines={2}>{cat}</Text>
             </TouchableOpacity>
           );
         })}

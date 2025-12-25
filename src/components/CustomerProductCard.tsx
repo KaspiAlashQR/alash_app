@@ -9,7 +9,6 @@ interface CustomerProductCardProps {
 
 const { width } = Dimensions.get('window');
 const isTablet = width > 600;
-const cardWidth = isTablet ? (width - 80) / 3 - 16 : (width - 60) / 2 - 12;
 
 const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product }) => {
   const [quantity, setQuantity] = useState(0);
@@ -24,8 +23,10 @@ const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product }) =>
     return unsubscribe;
   }, [product.id]);
 
-  const handleAddToCart = async () => {
-    await cartService.addToCart(product, 1);
+  const handleCardPress = async () => {
+    if (quantity === 0) {
+      await cartService.addToCart(product, 1);
+    }
   };
 
   const handleIncreaseQuantity = async () => {
@@ -39,7 +40,12 @@ const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product }) =>
   };
 
   return (
-    <View style={[styles.card, { width: cardWidth }]}>
+    <TouchableOpacity 
+      style={styles.card}
+      onPress={handleCardPress}
+      activeOpacity={quantity === 0 ? 0.7 : 1}
+      disabled={quantity > 0}
+    >
       <View style={styles.imageContainer}>
         {product.url ? (
           <Image 
@@ -55,19 +61,16 @@ const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product }) =>
       </View>
       
       <View style={styles.contentContainer}>
+        <Text style={styles.productPrice}>
+          {product.amount.toLocaleString('ru-RU')} ₸
+        </Text>
+        
         <Text style={styles.productName} numberOfLines={2}>
           {product.name}
         </Text>
         
-        <View style={styles.actionsContainer}>
-          {quantity === 0 ? (
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={handleAddToCart}
-            >
-              <Text style={styles.addButtonText}>{product.amount.toLocaleString('ru-RU')} ₸</Text>
-            </TouchableOpacity>
-          ) : (
+        {quantity > 0 && (
+          <View style={styles.actionsContainer}>
             <View style={styles.quantityContainer}>
               <TouchableOpacity
                 style={styles.quantityButton}
@@ -85,15 +88,16 @@ const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product }) =>
                 <Text style={styles.quantityButtonText}>+</Text>
               </TouchableOpacity>
             </View>
-          )}
-        </View>
+          </View>
+        )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
+    width: '100%',
     backgroundColor: '#fff',
     borderRadius: 20,
     marginBottom: 20,
@@ -133,25 +137,19 @@ const styles = StyleSheet.create({
     fontSize: isTablet ? 18 : 16,
     fontWeight: '700',
     color: '#22223b',
-    marginBottom: 12,
+    marginBottom: 8,
     textAlign: 'center',
+    minHeight: 60,
+  },
+  productPrice: {
+    fontSize: isTablet ? 20 : 18,
+    fontWeight: 'bold',
+    color: '#FF8A50',
+    textAlign: 'center',
+    marginBottom: 8,
   },
   actionsContainer: {
-    marginTop: 4,
-  },
-  addButton: {
-    backgroundColor: '#22c55e',
-    paddingVertical: isTablet ? 14 : 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#22c55e',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-  },
-  addButtonText: {
-    color: 'white',
-    fontSize: isTablet ? 16 : 14,
-    fontWeight: '600',
+    marginTop: 8,
   },
   quantityContainer: {
     flexDirection: 'row',
@@ -159,13 +157,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   quantityButton: {
-    backgroundColor: '#22c55e',
+    backgroundColor: '#FF6B35',
     width: isTablet ? 40 : 36,
     height: isTablet ? 40 : 36,
     borderRadius: isTablet ? 20 : 18,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#22c55e',
+    shadowColor: '#FF6B35',
     shadowOpacity: 0.08,
     shadowRadius: 4,
   },

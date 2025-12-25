@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   header: {
-    backgroundColor: '#16a34a',
+    backgroundColor: '#FF8A50',
     paddingHorizontal: 24,
     paddingVertical: 32,
     alignItems: 'center',
@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   saveButton: {
-    backgroundColor: '#16a34a',
+    backgroundColor: '#FF8A50',
     paddingVertical: 14,
     borderRadius: 8,
     shadowColor: '#000',

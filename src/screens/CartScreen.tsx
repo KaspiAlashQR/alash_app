@@ -240,7 +240,7 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
               onPress={handleCheckout}
             >
               <Text style={styles.checkoutButtonText}>
-                Перейти к оплате ({cart.items.reduce((total, item) => total + item.quantity, 0)})
+                Оплатить с Kaspi QR
               </Text>
             </TouchableOpacity>
           </View>
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
   },
   itemPrice: {
     fontSize: isTablet ? 14 : 12,
-    color: '#16a34a',
+    color: '#FF8A50',
     fontWeight: '600',
   },
   itemActions: {
@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   quantityButton: {
-    backgroundColor: '#16a34a',
+    backgroundColor: '#FF8A50',
     width: isTablet ? 32 : 28,
     height: isTablet ? 32 : 28,
     borderRadius: isTablet ? 16 : 14,
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
   totalAmount: {
     fontSize: isTablet ? 24 : 20,
     fontWeight: 'bold',
-    color: '#16a34a',
+    color: '#FF8A50',
   },
   buttonRow: {
     flexDirection: 'row',
@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   checkoutButton: {
-    backgroundColor: '#16a34a',
+    backgroundColor: '#FF8A50',
     paddingVertical: isTablet ? 16 : 14,
     borderRadius: 12,
     alignItems: 'center',
