@@ -66,8 +66,9 @@ class AlashCloudAPI {
   }
 
   async getDevicePrices(deviceId: number): Promise<ApiResponse<ProductsResponse>> {
-    const endpoint = `${API_CONFIG.ENDPOINTS.GET_PRICES}/${deviceId}/${API_CONFIG.SESSION_ID}`;
+    const endpoint = `${API_CONFIG.ENDPOINTS.GET_DEVICE_PRODUCTS}/${deviceId}/products/${API_CONFIG.SESSION_ID}`;
     const response = await this.makeRequest<any>(endpoint, { method: 'GET' });
+    
     // Если rows — строка, парсим её как JSON
     if (response && typeof response.rows === 'string') {
       try {
@@ -77,6 +78,7 @@ class AlashCloudAPI {
         return { error: 'Ошибка парсинга списка товаров' };
       }
     }
+    
     return response as ProductsResponse;
   }
 

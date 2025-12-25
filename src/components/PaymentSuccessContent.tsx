@@ -61,25 +61,28 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
             style={styles.scrollView}
             showsVerticalScrollIndicator={false}
           >
-            {cartItems.map((item, index) => (
-              <View key={index} style={styles.orderItem}>
-                <Image
-                  source={{ uri: item.product.url || 'https://via.placeholder.com/60' }}
-                  style={styles.productImage}
-                />
-                <View style={styles.productInfo}>
-                  <Text style={styles.productName} numberOfLines={1}>
-                    {item.product.name}
-                  </Text>
-                  <Text style={styles.productDetails}>
-                    {item.quantity} шт × {item.product.amount.toLocaleString('ru-RU')}₸
-                  </Text>
-                  <Text style={styles.productTotal}>
-                    = {(item.quantity * item.product.amount).toLocaleString('ru-RU')}₸
-                  </Text>
+            {cartItems.map((item, index) => {
+              const price = item.product.selling_price || item.product.amount || 0;
+              return (
+                <View key={index} style={styles.orderItem}>
+                  <Image
+                    source={{ uri: item.product.image_url || item.product.url || 'https://via.placeholder.com/60' }}
+                    style={styles.productImage}
+                  />
+                  <View style={styles.productInfo}>
+                    <Text style={styles.productName} numberOfLines={1}>
+                      {item.product.name_ru || item.product.name || ''}
+                    </Text>
+                    <Text style={styles.productDetails}>
+                      {item.quantity} шт × {price.toLocaleString('ru-RU')}₸
+                    </Text>
+                    <Text style={styles.productTotal}>
+                      = {(item.quantity * price).toLocaleString('ru-RU')}₸
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </ScrollView>
         </View>
 

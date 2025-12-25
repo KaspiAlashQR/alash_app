@@ -73,7 +73,10 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   useEffect(() => {
     // Получаем сумму из корзины и сохраняем товары
     const cart = cartService.getCart();
-    const total = cart.items.reduce((sum, item) => sum + (item.product.amount * item.quantity), 0);
+    const total = cart.items.reduce((sum, item) => {
+      const price = item.product.selling_price || item.product.amount || 0;
+      return sum + (price * item.quantity);
+    }, 0);
     setPaymentAmount(total);
     setSavedCartItems(cart.items);
     mountedRef.current = true;

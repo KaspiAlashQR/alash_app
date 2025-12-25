@@ -22,9 +22,10 @@ const isTablet = width > 600;
 const QuantityCounter: React.FC<{
   quantity: number;
   productPrice: number;
+  remainingQuantity: number;
   onIncrement: () => void;
   onDecrement: () => void;
-}> = ({ quantity, productPrice, onIncrement, onDecrement }) => {
+}> = ({ quantity, productPrice, remainingQuantity, onIncrement, onDecrement }) => {
   // Мгновенный расчет цены
   const currentTotal = productPrice * quantity;
 
@@ -42,9 +43,13 @@ const QuantityCounter: React.FC<{
         <Text style={styles.quantityText}>{quantity}</Text>
         
         <TouchableOpacity
-          style={styles.quantityButton}
+          style={[
+            styles.quantityButton,
+            quantity >= remainingQuantity && styles.quantityButtonDisabled
+          ]}
           onPress={onIncrement}
           activeOpacity={0.7}
+          disabled={quantity >= remainingQuantity}
         >
           <Text style={styles.quantityButtonText}>+</Text>
         </TouchableOpacity>
@@ -61,7 +66,8 @@ const QuantityCounter: React.FC<{
 const CartTotal: React.FC<{ cart: Cart }> = ({ cart }) => {
   // Прямой расчет без локального состояния
   const currentTotal = cart.items.reduce((sum, item) => {
-    return sum + (item.product.amount * item.quantity);
+    const price = item.product.selling_price || item.product.amount || 0;
+    return sum + (price * item.quantity);
   }, 0);
 
   return (
@@ -97,8 +103,10 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
     setCart(cartService.getCart());
   }
 
-  const handleIncrement = (productId: number, currentQuantity: number) => {
-    handleQuantityChange(productId, currentQuantity + 1);
+  const handleIncrement = (productId: number, currentQuantity: number, remainingQuantity: number) => {
+    if (currentQuantity < remainingQuantity) {
+      handleQuantityChange(productId, currentQuantity + 1);
+    }
   };
 
   const handleDecrement = (productId: number, currentQuantity: number) => {
@@ -136,8 +144,14 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
         return;
       }
 
-      const sum = cart.items.reduce((total, item) => total + (item.product.amount * item.quantity), 0);
-      const product_name = cart.items.map(item => ({ name: item.product.name, quantity: item.quantity }));
+      const sum = cart.items.reduce((total, item) => {
+        const price = item.product.selling_price || item.product.amount || 0;
+        return total + (price * item.quantity);
+      }, 0);
+      const product_name = cart.items.map(item => ({ 
+        name: item.product.name_ru || item.product.name || '', 
+        quantity: item.quantity 
+      }));
 
       const internalOrderResp = await createInternalOrder({
         amount: sum,
@@ -168,9 +182,9 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
   const renderCartItem = (item: CartItem) => (
     <View key={item.product.id} style={styles.cartItem}>
       <View style={styles.itemImageContainer}>
-        {item.product.url ? (
+        {item.product.image_url || item.product.url ? (
           <Image 
-            source={{ uri: item.product.url }} 
+            source={{ uri: item.product.image_url || item.product.url || '' }} 
             style={styles.itemImage}
             resizeMode="cover"
           />
@@ -182,14 +196,18 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
       </View>
 
       <View style={styles.itemInfo}>
-        <Text style={styles.itemName}>{item.product.name}</Text>
-        <Text style={styles.itemPrice}>{item.product.amount.toLocaleString('ru-RU')} ₸</Text>
+        <Text style={styles.itemName}>{item.product.name_ru || item.product.name || ''}</Text>
+        <View style={styles.itemPriceAndStock}>
+          <Text style={styles.itemPrice}>{(item.product.selling_price || item.product.amount || 0).toLocaleString('ru-RU')} ₸</Text>
+          <Text style={styles.itemStock}>Остаток: {item.product.remaining_quantity || 0} шт</Text>
+        </View>
       </View>
 
       <QuantityCounter
         quantity={item.quantity}
-        productPrice={item.product.amount}
-        onIncrement={() => handleIncrement(item.product.id, item.quantity)}
+        productPrice={item.product.selling_price || item.product.amount || 0}
+        remainingQuantity={item.product.remaining_quantity || 0}
+        onIncrement={() => handleIncrement(item.product.id, item.quantity, item.product.remaining_quantity || 0)}
         onDecrement={() => handleDecrement(item.product.id, item.quantity)}
       />
     </View>
@@ -351,10 +369,19 @@ const styles = StyleSheet.create({
     color: '#1A202C',
     marginBottom: 4,
   },
+  itemPriceAndStock: {
+    marginTop: 4,
+  },
   itemPrice: {
     fontSize: isTablet ? 14 : 12,
     color: '#FF8A50',
     fontWeight: '600',
+    marginBottom: 2,
+  },
+  itemStock: {
+    fontSize: isTablet ? 12 : 10,
+    color: '#6b7280',
+    fontWeight: '500',
   },
   itemActions: {
     alignItems: 'flex-end',
@@ -374,6 +401,7 @@ const styles = StyleSheet.create({
   },
   quantityButtonDisabled: {
     backgroundColor: '#9ca3af',
+    opacity: 0.5,
   },
   quantityButtonText: {
     color: 'white',

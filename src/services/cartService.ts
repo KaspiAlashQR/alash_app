@@ -10,7 +10,7 @@ class CartService {
   };
 
   private listeners: Array<(cart: Cart) => void> = [];
-  private saveTimeout: NodeJS.Timeout | null = null;
+  private saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.loadCart();
@@ -60,7 +60,8 @@ class CartService {
 
   private calculateTotal(): void {
     this.cart.total = this.cart.items.reduce((total, item) => {
-      return total + (item.product.amount * item.quantity);
+      const price = item.product.selling_price || item.product.amount || 0;
+      return total + (price * item.quantity);
     }, 0);
   }
 
@@ -69,14 +70,26 @@ class CartService {
   }
 
   async addToCart(product: Product, quantity: number = 1): Promise<void> {
+    const remainingQty = product.remaining_quantity || 0;
+    if (remainingQty <= 0) {
+      return; // Нельзя добавить товар, если остаток 0
+    }
+
     const existingItemIndex = this.cart.items.findIndex(item => item.product.id === product.id);
     
     if (existingItemIndex >= 0) {
-      this.cart.items[existingItemIndex].quantity += quantity;
+      const newQuantity = this.cart.items[existingItemIndex].quantity + quantity;
+      if (newQuantity <= remainingQty) {
+        this.cart.items[existingItemIndex].quantity = newQuantity;
+      } else {
+        // Ограничиваем количеством остатка
+        this.cart.items[existingItemIndex].quantity = remainingQty;
+      }
     } else {
+      const addQuantity = Math.min(quantity, remainingQty);
       this.cart.items.push({
         product,
-        quantity
+        quantity: addQuantity
       });
     }
 
@@ -93,7 +106,13 @@ class CartService {
 
     const itemIndex = this.cart.items.findIndex(item => item.product.id === productId);
     if (itemIndex >= 0) {
-      this.cart.items[itemIndex].quantity = quantity;
+      const product = this.cart.items[itemIndex].product;
+      const remainingQty = product.remaining_quantity || 0;
+      
+      // Ограничиваем количеством остатка
+      const finalQuantity = Math.min(quantity, remainingQty);
+      this.cart.items[itemIndex].quantity = finalQuantity;
+      
       this.calculateTotal();
       this.notifyListeners();
       this.debouncedSave();

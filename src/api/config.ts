@@ -5,6 +5,7 @@ export const API_CONFIG = {
   ENDPOINTS: {
     DEVICE_INFO: '/go/devinfo',
     GET_PRICES: '/go/prices',
+    GET_DEVICE_PRODUCTS: '/go/devices', // /{device_id}/products/{sessionid}
     ADD_PRICE: '/go/prices',
     EDIT_PRICE: '/go/prices/edit',
     DELETE_PRICE: '/go/prices/delete',

@@ -26,9 +26,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, onEdit, onD
       style={[styles.card, { width: cardWidth }]}
     >
       <View style={styles.imageContainer}>
-        {product.url ? (
+        {product.image_url || product.url ? (
           <Image 
-            source={{ uri: product.url }} 
+            source={{ uri: product.image_url || product.url || '' }} 
             style={styles.productImage}
             resizeMode="cover"
           />
@@ -41,16 +41,16 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, onEdit, onD
       
       <View style={styles.contentContainer}>
         <Text style={styles.productName} numberOfLines={2}>
-          {product.name}
+          {product.name_ru || product.name || ''}
         </Text>
         
         <Text style={styles.productDescription} numberOfLines={2}>
-          {product.name2}
+          {product.name_kz || product.name2 || ''}
         </Text>
         
         <View style={styles.priceContainer}>
           <Text style={styles.price}>
-            {product.amount.toLocaleString('ru-RU')} ₸
+            {(product.selling_price || product.amount || 0).toLocaleString('ru-RU')} ₸
           </Text>
         </View>
         

@@ -7,11 +7,23 @@ export interface DeviceInfo {
 
 export interface Product {
   id: number;
-  name: string;
-  amount: number;
-  name2: string;
-  url: string;
-  category?: string;
+  device_id: number;
+  invoice_product_id: number;
+  quantity: number;
+  remaining_quantity: number;
+  name_ru: string;
+  name_kz: string;
+  category: string;
+  selling_price: number;
+  purchase_price: number;
+  image_url: string;
+  created_at: string;
+  updated_at: string;
+  // Обратная совместимость (геттеры для старого кода)
+  name?: string;
+  amount?: number;
+  name2?: string;
+  url?: string;
 }
 
 export interface CartItem {

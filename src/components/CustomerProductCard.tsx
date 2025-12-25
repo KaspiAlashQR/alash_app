@@ -25,12 +25,18 @@ const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product }) =>
 
   const handleCardPress = async () => {
     if (quantity === 0) {
-      await cartService.addToCart(product, 1);
+      const remainingQty = product.remaining_quantity || 0;
+      if (remainingQty > 0) {
+        await cartService.addToCart(product, 1);
+      }
     }
   };
 
   const handleIncreaseQuantity = async () => {
-    await cartService.updateQuantity(product.id, quantity + 1);
+    const remainingQty = product.remaining_quantity || 0;
+    if (quantity < remainingQty) {
+      await cartService.updateQuantity(product.id, quantity + 1);
+    }
   };
 
   const handleDecreaseQuantity = async () => {
@@ -47,9 +53,9 @@ const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product }) =>
       disabled={quantity > 0}
     >
       <View style={styles.imageContainer}>
-        {product.url ? (
+        {product.image_url || product.url ? (
           <Image 
-            source={{ uri: product.url }} 
+            source={{ uri: product.image_url || product.url || '' }} 
             style={styles.productImage}
             resizeMode="cover"
           />
@@ -61,13 +67,19 @@ const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product }) =>
       </View>
       
       <View style={styles.contentContainer}>
-        <Text style={styles.productPrice}>
-          {product.amount.toLocaleString('ru-RU')} ₸
+        <Text style={styles.productName} numberOfLines={2}>
+          {product.name_ru || product.name || ''}
         </Text>
         
-        <Text style={styles.productName} numberOfLines={2}>
-          {product.name}
-        </Text>
+        <View style={styles.priceAndStockContainer}>
+          <Text style={styles.productPrice}>
+            {(product.selling_price || product.amount || 0).toLocaleString('ru-RU')} ₸
+          </Text>
+          
+          <Text style={styles.stockText}>
+            Остаток: {product.remaining_quantity || 0} шт
+          </Text>
+        </View>
         
         {quantity > 0 && (
           <View style={styles.actionsContainer}>
@@ -82,8 +94,12 @@ const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product }) =>
               <Text style={styles.quantityText}>{quantity}</Text>
               
               <TouchableOpacity
-                style={styles.quantityButton}
+                style={[
+                  styles.quantityButton,
+                  (product.remaining_quantity || 0) <= quantity && styles.quantityButtonDisabled
+                ]}
                 onPress={handleIncreaseQuantity}
+                disabled={(product.remaining_quantity || 0) <= quantity}
               >
                 <Text style={styles.quantityButtonText}>+</Text>
               </TouchableOpacity>
@@ -137,16 +153,25 @@ const styles = StyleSheet.create({
     fontSize: isTablet ? 18 : 16,
     fontWeight: '700',
     color: '#22223b',
-    marginBottom: 8,
+    marginBottom: 12,
     textAlign: 'center',
-    minHeight: 60,
+    minHeight: 50,
+  },
+  priceAndStockContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   productPrice: {
     fontSize: isTablet ? 20 : 18,
     fontWeight: 'bold',
     color: '#FF8A50',
-    textAlign: 'center',
-    marginBottom: 8,
+  },
+  stockText: {
+    fontSize: isTablet ? 14 : 12,
+    color: '#6b7280',
+    fontWeight: '500',
   },
   actionsContainer: {
     marginTop: 8,
@@ -166,6 +191,10 @@ const styles = StyleSheet.create({
     shadowColor: '#FF6B35',
     shadowOpacity: 0.08,
     shadowRadius: 4,
+  },
+  quantityButtonDisabled: {
+    backgroundColor: '#9ca3af',
+    opacity: 0.5,
   },
   quantityButtonText: {
     color: 'white',
