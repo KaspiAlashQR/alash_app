@@ -8,6 +8,8 @@ import { deviceStorage } from '../api/storage';
 import { Product, isApiError, isProductsResponse, DeviceInfo } from '../api/types';
 import ProductCard from '../components/ProductCard';
 import { RootStackParamList } from '../utils/navigation.types';
+import StatisticsTab from '../components/admin/StatisticsTab';
+import InvoicesTab from '../components/admin/InvoicesTab';
 
 type AdminPanelScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'AdminPanel'>;
 
@@ -19,6 +21,7 @@ const { width } = Dimensions.get('window');
 const isTablet = width > 600;
 
 const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
+  const [activeTab, setActiveTab] = useState<'products' | 'statistics' | 'invoices'>('products');
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deviceId, setDeviceId] = useState<number | null>(null);
@@ -141,9 +144,7 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
   const handleLogout = async () => {
     try {
       if (Platform.OS === 'android') {
-        console.log('Включаем киоск режим при выходе из админки');
         await KioskModule.enableKioskMode();
-        console.log('Киоск режим включен');
       }
     } catch (error) {
       console.warn('Ошибка включения киоск режима:', error);
@@ -152,7 +153,7 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
   };
 
   const handleDeleteProduct = async (productId: number) => {
-    if (!deviceId) return;
+    if (!deviceId || !deviceInfo) return;
 
     Alert.alert(
       'Удалить товар',
@@ -164,12 +165,10 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              console.log('Удаление товара ID:', productId);
-              const response = await alashCloudAPI.deleteProduct(productId);
-              console.log('Ответ API:', response);
+              const deviceId = deviceInfo.device_id;
+              const response = await alashCloudAPI.deleteProduct(deviceId, productId);
               
               if (response && isApiError(response)) {
-                console.error('API Error:', response.error);
                 Alert.alert('Ошибка', response.error || 'Не удалось удалить товар');
               } else {
                 Alert.alert('Успех', 'Товар успешно удален', [
@@ -196,7 +195,7 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
       <SafeAreaView style={styles.container}>
         <View style={styles.navHeader}>
           <Text style={[styles.logoText, isTablet && styles.logoTextTablet]}>
-            AlashCloud Admin
+            GoMarket Admin
           </Text>
         </View>
         <View style={styles.centerContainer}>
@@ -213,7 +212,7 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
     <SafeAreaView style={[styles.container, { backgroundColor: '#fff' }] }>
       <View style={styles.navHeader}>
         <Text style={[styles.logoText, isTablet && styles.logoTextTablet]}>
-          AlashCloud Admin
+          GoMarket Admin
         </Text>
         
         <TouchableOpacity
@@ -226,7 +225,40 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      {/* Табы */}
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'products' && styles.tabActive]}
+          onPress={() => setActiveTab('products')}
+        >
+          <Text style={[styles.tabText, activeTab === 'products' && styles.tabTextActive]}>
+            Товары
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'statistics' && styles.tabActive]}
+          onPress={() => setActiveTab('statistics')}
+        >
+          <Text style={[styles.tabText, activeTab === 'statistics' && styles.tabTextActive]}>
+            Статистика
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'invoices' && styles.tabActive]}
+          onPress={() => setActiveTab('invoices')}
+        >
+          <Text style={[styles.tabText, activeTab === 'invoices' && styles.tabTextActive]}>
+            Накладные
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Контент табов */}
+      {activeTab === 'products' && (
+        <>
+          <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={styles.contentSection}>
           {products.length === 0 ? (
             <View style={styles.centerContainer}>
@@ -250,15 +282,19 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      {/* Кнопка скрыта по требованию, оставить для будущего */}
       <TouchableOpacity
-        style={[styles.floatingAddButton, { display: 'none' }, isTablet && styles.floatingAddButtonTablet]}
-        disabled
+        style={[styles.floatingAddButton, isTablet && styles.floatingAddButtonTablet]}
+        onPress={() => navigation.navigate('AddProduct', { mode: 'add', product: undefined })}
       >
         <Text style={[styles.floatingAddButtonText, isTablet && styles.floatingAddButtonTextTablet]}>
           + Добавить товар
         </Text>
       </TouchableOpacity>
+        </>
+      )}
+
+      {activeTab === 'statistics' && <StatisticsTab />}
+      {activeTab === 'invoices' && <InvoicesTab />}
 
       <Modal
         animationType="slide"
@@ -415,6 +451,34 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     paddingTop: 0,
+    paddingHorizontal: isTablet ? 20 : 16,
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 12,
+    padding: 4,
+    marginHorizontal: isTablet ? 20 : 16,
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+  },
+  tabActive: {
+    backgroundColor: '#FF8A50',
+  },
+  tabText: {
+    fontSize: isTablet ? 16 : 14,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  tabTextActive: {
+    color: '#fff',
   },
   scrollView: {
     flex: 1,
@@ -470,8 +534,8 @@ const styles = StyleSheet.create({
   },
   contentSection: {
     flex: 1,
-    paddingHorizontal: 0,
-    paddingVertical: 0,
+    paddingHorizontal: isTablet ? 12 : 8,
+    paddingVertical: isTablet ? 12 : 8,
     backgroundColor: 'transparent',
     borderRadius: 0,
     margin: 0,

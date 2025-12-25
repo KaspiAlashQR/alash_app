@@ -22,10 +22,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, onEdit, onD
   };
 
   return (
-    <TouchableOpacity 
-      style={[styles.card, { width: cardWidth }]} 
-      onPress={handlePress}
-      activeOpacity={0.8}
+    <View 
+      style={[styles.card, { width: cardWidth }]}
     >
       <View style={styles.imageContainer}>
         {product.url ? (
@@ -60,21 +58,29 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, onEdit, onD
           <View style={styles.actionsContainer}>
             <TouchableOpacity
               style={styles.editButton}
-              onPress={() => onEdit && onEdit(product)}
+              onPress={(e) => {
+                e.stopPropagation();
+                onEdit && onEdit(product);
+              }}
+              activeOpacity={0.7}
             >
               <Text style={styles.editButtonText}>Редактировать</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
               style={styles.deleteButton}
-              onPress={() => onDelete && onDelete(product)}
+              onPress={(e) => {
+                e.stopPropagation();
+                onDelete && onDelete(product);
+              }}
+              activeOpacity={0.7}
             >
               <Text style={styles.deleteButtonText}>Удалить</Text>
             </TouchableOpacity>
           </View>
         )}
       </View>
-    </TouchableOpacity>
+    </View>
   );
 };
 

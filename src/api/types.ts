@@ -29,27 +29,43 @@ export interface ProductsResponse {
 }
 
 export interface AddProductRequest {
-  pid: number;
+  device_id: number;
   name: string;
-  amount: string;
-  pin: string;
-  data: string;
+  amount: number;
   name2: string;
-  image_data: string | null;
+  url: string | null;
+  category: string;
 }
 
 export interface EditProductRequest {
-  pid: number;
+  device_id: number;
+  price_id: number;
   name: string;
-  amount: string;
-  pin: string;
-  data: string;
+  amount: number;
   name2: string;
-  image_data: string | null;
+  url: string | null;
+  category: string;
 }
 
 export interface AddProductResponse {
+  OK: boolean;
   id: number;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  name_kz: string;
+}
+
+export interface CategoriesResponse {
+  categories: Category[];
+}
+
+export interface UploadImageResponse {
+  success: boolean;
+  url: string;
+  public_id: string;
 }
 
 

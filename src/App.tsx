@@ -44,21 +44,18 @@ function App(): React.JSX.Element {
         if (storedVersion !== currentVersion) {
           // Очистить только нужные ключи, например корзину и авторизацию
           await AsyncStorage.removeItem('@AlashCloud_Cart');
-          // ...добавьте другие ключи, если нужно
           await AsyncStorage.setItem(VERSION_KEY, currentVersion);
-          console.log('Storage очищен из-за обновления версии:', currentVersion);
         }
       } catch (e) {
         console.warn('Ошибка при проверке версии приложения:', e);
       }
     };
     checkAndClearStorageOnUpdate();
-    // Автоматически включаем киоск режим при запуске приложения
+    
     const enableKioskOnStart = async () => {
       if (Platform.OS === 'android') {
         try {
           await KioskModule.enableKioskMode();
-          console.log('Киоск режим включен при запуске');
         } catch (error) {
           console.warn('Не удалось включить киоск режим:', error);
         }
@@ -112,6 +109,14 @@ function App(): React.JSX.Element {
             options={{
               title: 'Панель администратора',
               gestureEnabled: false, // Запрещаем свайп назад с панели админа
+            }}
+          />
+          <Stack.Screen
+            name="AddProduct"
+            component={AddProductScreen}
+            options={{
+              title: 'Добавление товара',
+              gestureEnabled: true,
             }}
           />
           <Stack.Screen

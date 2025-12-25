@@ -1,5 +1,5 @@
 import { API_CONFIG } from './config';
-import { DeviceInfo, ApiResponse, isApiError, isDeviceInfo, Product, ProductsResponse, isProductsResponse, AddProductRequest, AddProductResponse, EditProductRequest } from './types';
+import { DeviceInfo, ApiResponse, isApiError, isDeviceInfo, Product, ProductsResponse, isProductsResponse, AddProductRequest, AddProductResponse, EditProductRequest, UploadImageResponse, CategoriesResponse } from './types';
 
 class AlashCloudAPI {
   private baseURL = API_CONFIG.BASE_URL;
@@ -95,37 +95,145 @@ class AlashCloudAPI {
     return { isValid: false, error };
   }
 
-  private validateImageSize(imageData: string): boolean {
-    const sizeInBytes = (imageData.length * 3) / 4;
-    const sizeInMB = sizeInBytes / (1024 * 1024);
-    return sizeInMB <= 10;
-  }
-
   async addProduct(productData: AddProductRequest): Promise<ApiResponse<AddProductResponse>> {
-    if (productData.image_data && !this.validateImageSize(productData.image_data)) {
-      return { error: 'Размер изображения не должен превышать 10 МБ' };
-    }
-
-    return this.makeRequest<AddProductResponse>(API_CONFIG.ENDPOINTS.ADD_PRICE, {
-      method: 'POST',
-      body: JSON.stringify(productData),
+    const endpoint = `${API_CONFIG.ENDPOINTS.ADD_PRICE}/${API_CONFIG.SESSION_ID}`;
+    const url = `${this.baseURL}${endpoint}`;
+    const body = JSON.stringify(productData);
+    
+    console.log('=== ADD PRODUCT REQUEST ===');
+    console.log('URL:', url);
+    console.log('Headers:', {
+      'Authorization': `Bearer ${this.token}`,
+      'Content-Type': 'application/json',
     });
+    console.log('Body:', body);
+    console.log('Body (parsed):', productData);
+    
+    const response = await this.makeRequest<AddProductResponse>(endpoint, {
+      method: 'POST',
+      body: body,
+    });
+    
+    console.log('=== ADD PRODUCT RESPONSE ===');
+    console.log('Response:', response);
+    console.log('===========================');
+    
+    return response;
   }
 
-  async editProduct(productData: EditProductRequest): Promise<ApiResponse<boolean>> {
-    if (productData.image_data && !this.validateImageSize(productData.image_data)) {
-      return { error: 'Размер изображения не должен превышать 10 МБ' };
-    }
-
-    return this.makeRequest<boolean>(API_CONFIG.ENDPOINTS.EDIT_PRICE, {
-      method: 'POST',
-      body: JSON.stringify(productData),
+  async editProduct(productData: EditProductRequest): Promise<ApiResponse<AddProductResponse>> {
+    const endpoint = `${API_CONFIG.ENDPOINTS.EDIT_PRICE}/${API_CONFIG.SESSION_ID}`;
+    const url = `${this.baseURL}${endpoint}`;
+    const body = JSON.stringify(productData);
+    
+    console.log('=== EDIT PRODUCT REQUEST ===');
+    console.log('URL:', url);
+    console.log('Headers:', {
+      'Authorization': `Bearer ${this.token}`,
+      'Content-Type': 'application/json',
     });
+    console.log('Body:', body);
+    console.log('Body (parsed):', productData);
+    
+    const response = await this.makeRequest<AddProductResponse>(endpoint, {
+      method: 'POST',
+      body: body,
+    });
+    
+    console.log('=== EDIT PRODUCT RESPONSE ===');
+    console.log('Response:', response);
+    console.log('============================');
+    
+    return response;
   }
 
-  async deleteProduct(productId: number): Promise<ApiResponse<boolean>> {
-    const endpoint = `${API_CONFIG.ENDPOINTS.DELETE_PRICE}/${productId}`;
-    return this.makeRequest<boolean>(endpoint, { method: 'POST' });
+  async deleteProduct(deviceId: number, priceId: number): Promise<ApiResponse<{ OK: boolean }>> {
+    const endpoint = `${API_CONFIG.ENDPOINTS.DELETE_PRICE}/${deviceId}/${priceId}/${API_CONFIG.SESSION_ID}`;
+    const url = `${this.baseURL}${endpoint}`;
+    
+    console.log('=== DELETE PRODUCT REQUEST ===');
+    console.log('URL:', url);
+    console.log('Headers:', {
+      'Authorization': `Bearer ${this.token}`,
+      'Content-Type': 'application/json',
+    });
+    console.log('Params:', { device_id: deviceId, priceId, sessionId: API_CONFIG.SESSION_ID });
+    
+    const response = await this.makeRequest<{ OK: boolean }>(endpoint, { method: 'POST' });
+    
+    console.log('=== DELETE PRODUCT RESPONSE ===');
+    console.log('Response:', response);
+    console.log('===============================');
+    
+    return response;
+  }
+
+  async uploadImage(file: File | Blob): Promise<ApiResponse<UploadImageResponse>> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const endpoint = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.UPLOAD_IMAGE}/${API_CONFIG.SESSION_ID}`;
+      
+      console.log('=== UPLOAD IMAGE REQUEST ===');
+      console.log('URL:', endpoint);
+      console.log('Headers:', {
+        'Authorization': `Bearer ${API_CONFIG.TOKEN}`,
+      });
+      console.log('File size:', file.size, 'bytes');
+      console.log('File type:', file.type);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${API_CONFIG.TOKEN}`,
+        },
+        body: formData,
+      });
+
+      console.log('=== UPLOAD IMAGE RESPONSE ===');
+      console.log('Status:', response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.log('Error response:', errorData);
+        console.log('============================');
+        return { error: errorData.error || 'Не удалось загрузить изображение' };
+      }
+
+      const responseData = await response.json();
+      console.log('Success response:', responseData);
+      console.log('============================');
+      
+      return responseData;
+    } catch (error) {
+      console.log('=== UPLOAD IMAGE ERROR ===');
+      console.log('Error:', error);
+      console.log('==========================');
+      return { error: 'Ошибка загрузки изображения' };
+    }
+  }
+
+  async getCategories(): Promise<ApiResponse<CategoriesResponse>> {
+    const endpoint = API_CONFIG.ENDPOINTS.GET_CATEGORIES;
+    const url = `${this.baseURL}${endpoint}`;
+    
+    console.log('=== GET CATEGORIES REQUEST ===');
+    console.log('URL:', url);
+    console.log('Headers:', {
+      'Authorization': `Bearer ${this.token}`,
+      'Content-Type': 'application/json',
+    });
+    
+    const response = await this.makeRequest<CategoriesResponse>(endpoint, {
+      method: 'GET',
+    });
+    
+    console.log('=== GET CATEGORIES RESPONSE ===');
+    console.log('Response:', response);
+    console.log('===============================');
+    
+    return response;
   }
 
   async createOrder(machid: string, sum: number): Promise<ApiResponse<{ id: number }>> {
