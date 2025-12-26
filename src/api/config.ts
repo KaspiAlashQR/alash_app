@@ -14,5 +14,9 @@ export const API_CONFIG = {
     NEW_ORDER: '/neword',
     CHECK_ORDER: '/checkord',
     GO_ORDERS: '/go/orders',
+    ASSIGN_PRODUCTS: '/go/devices', // /{device_id}/assign-products/{sessionid}
+    GET_AVAILABLE_PRODUCTS: '/go/devices', // /{device_id}/available-products/{sessionid}
+    REDUCE_STOCK: '/go/devices', // /{device_id}/reduce-stock/{sessionid}
+    GET_ORDERS: '/go/orders', // /{machid}
   },
 };

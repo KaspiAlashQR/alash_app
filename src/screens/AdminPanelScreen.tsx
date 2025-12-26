@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Alert, ActivityIndicator, Platform, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Alert, ActivityIndicator, Platform, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { KioskModule, KioskStatus } from '../utils/KioskModule';
 import { alashCloudAPI } from '../api/client';
 import { deviceStorage } from '../api/storage';
 import { Product, isApiError, isProductsResponse, DeviceInfo } from '../api/types';
+import { API_CONFIG } from '../api/config';
 import ProductCard from '../components/ProductCard';
+import CustomerProductCard from '../components/CustomerProductCard';
 import { RootStackParamList } from '../utils/navigation.types';
 import StatisticsTab from '../components/admin/StatisticsTab';
-import InvoicesTab from '../components/admin/InvoicesTab';
 
 type AdminPanelScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'AdminPanel'>;
 
@@ -21,12 +22,16 @@ const { width } = Dimensions.get('window');
 const isTablet = width > 600;
 
 const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
-  const [activeTab, setActiveTab] = useState<'products' | 'statistics' | 'invoices'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'statistics'>('products');
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deviceId, setDeviceId] = useState<number | null>(null);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [kioskModalVisible, setKioskModalVisible] = useState(false);
+  const [editQuantityModalVisible, setEditQuantityModalVisible] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editQuantity, setEditQuantity] = useState('');
+  const [availableQuantity, setAvailableQuantity] = useState<number | null>(null);
   const [kioskStatus, setKioskStatus] = useState<KioskStatus>({
     lockTaskMode: false,
     fullscreenMode: false,
@@ -152,12 +157,12 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
     navigation.navigate('Home');
   };
 
-  const handleDeleteProduct = async (productId: number) => {
+  const handleDeleteProduct = async (product: Product) => {
     if (!deviceId || !deviceInfo) return;
 
     Alert.alert(
       'Удалить товар',
-      'Вы уверены, что хотите удалить этот товар?',
+      `Вы уверены, что хотите удалить товар "${product.name_ru || product.name || ''}"? Товар вернется на склад.`,
       [
         { text: 'Отмена', style: 'cancel' },
         {
@@ -165,29 +170,118 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              const deviceId = deviceInfo.device_id;
-              const response = await alashCloudAPI.deleteProduct(deviceId, productId);
+              // Проверяем наличие invoice_product_id
+              if (!product.invoice_product_id) {
+                Alert.alert('Ошибка', `Товар не содержит invoice_product_id. ID товара: ${product.id}`);
+                return;
+              }
+
+              const requestData = [
+                {
+                  invoice_product_id: product.invoice_product_id,
+                  quantity: 0
+                }
+              ];
+              
+              const response = await alashCloudAPI.assignProducts(deviceInfo.device_id, requestData);
               
               if (response && isApiError(response)) {
+                Alert.alert('Ошибка', response.error || 'Не удалось удалить товар');
+              } else if (response && 'OK' in response && !response.OK) {
                 Alert.alert('Ошибка', response.error || 'Не удалось удалить товар');
               } else {
                 Alert.alert('Успех', 'Товар успешно удален', [
                   {
                     text: 'OK',
                     onPress: async () => {
-                      await loadProducts(deviceId);
+                      await loadProducts(deviceInfo.device_id);
                     }
                   }
                 ]);
               }
             } catch (error) {
               console.error('Ошибка удаления товара:', error);
-              Alert.alert('Ошибка', 'Не удалось удалить товар');
+              Alert.alert('Ошибка', 'Не удалось удалить товар: ' + (error instanceof Error ? error.message : String(error)));
             }
           }
         }
       ]
     );
+  };
+
+  const handleEditProduct = async (product: Product) => {
+    setEditingProduct(product);
+    setEditQuantity(product.quantity.toString());
+    setAvailableQuantity(null);
+    setEditQuantityModalVisible(true);
+    
+    // Загружаем доступные товары, чтобы получить available_quantity
+    if (deviceInfo) {
+      try {
+        const response = await alashCloudAPI.getAvailableProducts(deviceInfo.device_id);
+        if (!isApiError(response) && response.rows) {
+          const availableProduct = response.rows.find(
+            (ap) => ap.id === product.invoice_product_id
+          );
+          if (availableProduct) {
+            setAvailableQuantity(availableProduct.available_quantity);
+          }
+        }
+      } catch (error) {
+        console.error('Ошибка загрузки доступных товаров:', error);
+      }
+    }
+  };
+
+  const handleSaveQuantity = async () => {
+    if (!editingProduct || !deviceInfo) return;
+    
+    const newQuantity = parseInt(editQuantity, 10);
+    if (isNaN(newQuantity) || newQuantity < 0) {
+      Alert.alert('Ошибка', 'Введите корректное количество');
+      return;
+    }
+
+    // Проверяем доступное количество на складе (только если увеличиваем)
+    if (newQuantity > editingProduct.quantity && availableQuantity !== null) {
+      const additionalNeeded = newQuantity - editingProduct.quantity;
+      if (additionalNeeded > availableQuantity) {
+        Alert.alert(
+          'Ошибка', 
+          `Недостаточно товара на складе. Нужно дополнительно: ${additionalNeeded} шт, доступно на складе: ${availableQuantity} шт`
+        );
+        return;
+      }
+    }
+
+    try {
+      const response = await alashCloudAPI.assignProducts(deviceInfo.device_id, [
+        {
+          invoice_product_id: editingProduct.invoice_product_id,
+          quantity: newQuantity
+        }
+      ]);
+      
+      if (response && isApiError(response)) {
+        Alert.alert('Ошибка', response.error || 'Не удалось обновить товар');
+      } else if (response && 'OK' in response && !response.OK) {
+        Alert.alert('Ошибка', response.error || 'Не удалось обновить товар');
+      } else {
+        setEditQuantityModalVisible(false);
+        setEditingProduct(null);
+        Alert.alert('Успех', 'Количество товара обновлено', [
+          {
+            text: 'OK',
+            onPress: async () => {
+              await loadProducts(deviceInfo.device_id);
+            }
+          }
+        ]);
+      }
+    } catch (error) {
+      console.error('Ошибка обновления товара:', error);
+      Alert.alert('Ошибка', 'Не удалось обновить товар');
+    }
   };
 
   if (isLoading) {
@@ -244,15 +338,6 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
             Статистика
           </Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'invoices' && styles.tabActive]}
-          onPress={() => setActiveTab('invoices')}
-        >
-          <Text style={[styles.tabText, activeTab === 'invoices' && styles.tabTextActive]}>
-            Накладные
-          </Text>
-        </TouchableOpacity>
       </View>
 
       {/* Контент табов */}
@@ -267,34 +352,82 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
               </Text>
             </View>
           ) : (
-            <View style={styles.productsGrid}>
-              {products.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  onEdit={(product) => navigation.navigate('AddProduct', { mode: 'edit', product })}
-                  onDelete={(product) => handleDeleteProduct(product.id)}
-                  showActions={true}
-                />
-              ))}
+            <View style={styles.productsContainer}>
+              {(() => {
+                const rows = [];
+                for (let i = 0; i < products.length; i += 3) {
+                  rows.push(
+                    <View key={i} style={styles.productsRow}>
+                      {products[i] && (
+                        <View style={styles.productWrapper}>
+                          <CustomerProductCard product={products[i]} readOnly={true} />
+                          <View style={styles.adminActions}>
+                            <TouchableOpacity
+                              style={styles.editButton}
+                              onPress={() => handleEditProduct(products[i])}
+                            >
+                              <Text style={styles.editButtonText}>Изменить количество</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.deleteButton}
+                              onPress={() => handleDeleteProduct(products[i])}
+                            >
+                              <Text style={styles.deleteButtonText}>Удалить</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+                      {products[i + 1] && (
+                        <View style={styles.productWrapper}>
+                          <CustomerProductCard product={products[i + 1]} readOnly={true} />
+                          <View style={styles.adminActions}>
+                            <TouchableOpacity
+                              style={styles.editButton}
+                              onPress={() => handleEditProduct(products[i + 1])}
+                            >
+                              <Text style={styles.editButtonText}>Изменить количество</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.deleteButton}
+                              onPress={() => handleDeleteProduct(products[i + 1])}
+                            >
+                              <Text style={styles.deleteButtonText}>Удалить</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+                      {products[i + 2] && (
+                        <View style={styles.productWrapper}>
+                          <CustomerProductCard product={products[i + 2]} readOnly={true} />
+                          <View style={styles.adminActions}>
+                            <TouchableOpacity
+                              style={styles.editButton}
+                              onPress={() => handleEditProduct(products[i + 2])}
+                            >
+                              <Text style={styles.editButtonText}>Изменить количество</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.deleteButton}
+                              onPress={() => handleDeleteProduct(products[i + 2])}
+                            >
+                              <Text style={styles.deleteButtonText}>Удалить</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  );
+                }
+                return rows;
+              })()}
             </View>
           )}
         </View>
       </ScrollView>
-
-      <TouchableOpacity
-        style={[styles.floatingAddButton, isTablet && styles.floatingAddButtonTablet]}
-        onPress={() => navigation.navigate('AddProduct', { mode: 'add', product: undefined })}
-      >
-        <Text style={[styles.floatingAddButtonText, isTablet && styles.floatingAddButtonTextTablet]}>
-          + Добавить товар
-        </Text>
-      </TouchableOpacity>
         </>
       )}
 
       {activeTab === 'statistics' && <StatisticsTab />}
-      {activeTab === 'invoices' && <InvoicesTab />}
 
       <Modal
         animationType="slide"
@@ -442,6 +575,68 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
         </View>
       </Modal>
 
+      {/* Модал для редактирования количества */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={editQuantityModalVisible}
+        onRequestClose={() => setEditQuantityModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.editQuantityModalContent, isTablet && styles.editQuantityModalContentTablet]}>
+            <Text style={[styles.editQuantityModalTitle, isTablet && styles.editQuantityModalTitleTablet]}>
+              Изменить количество
+            </Text>
+            
+            {editingProduct && (
+              <>
+                <Text style={[styles.editQuantityInfo, isTablet && styles.editQuantityInfoTablet]}>
+                  Товар: {editingProduct.name_ru || editingProduct.name || ''}
+                </Text>
+                <Text style={[styles.editQuantityInfo, isTablet && styles.editQuantityInfoTablet]}>
+                  Назначено на устройство: {editingProduct.quantity} шт
+                </Text>
+                <Text style={[styles.editQuantityInfo, isTablet && styles.editQuantityInfoTablet]}>
+                  Остаток на устройстве: {editingProduct.remaining_quantity} шт
+                </Text>
+                <Text style={[styles.editQuantityInfo, isTablet && styles.editQuantityInfoTablet]}>
+                  Остаток на складе: {availableQuantity !== null ? `${availableQuantity} шт` : 'Загрузка...'}
+                </Text>
+                
+                <TextInput
+                  style={[styles.editQuantityInput, isTablet && styles.editQuantityInputTablet]}
+                  value={editQuantity}
+                  onChangeText={setEditQuantity}
+                  keyboardType="numeric"
+                  placeholder="Введите количество"
+                  placeholderTextColor="#9ca3af"
+                />
+                
+                <View style={styles.editQuantityButtons}>
+                  <TouchableOpacity
+                    style={[styles.editQuantityCancelButton, isTablet && styles.editQuantityCancelButtonTablet]}
+                    onPress={() => {
+                      setEditQuantityModalVisible(false);
+                      setEditingProduct(null);
+                      setEditQuantity('');
+                    }}
+                  >
+                    <Text style={styles.editQuantityCancelButtonText}>Отмена</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.editQuantitySaveButton, isTablet && styles.editQuantitySaveButtonTablet]}
+                    onPress={handleSaveQuantity}
+                  >
+                    <Text style={styles.editQuantitySaveButtonText}>Сохранить</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 };
@@ -565,42 +760,46 @@ const styles = StyleSheet.create({
   emptyTextTablet: {
     fontSize: 20,
   },
-  productsGrid: {
+  productsContainer: {
+    width: 800,
+    alignSelf: 'center',
+  },
+  productsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
   },
-  floatingAddButton: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-    shadowColor: '#FF6B35',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
+  productWrapper: {
+    width: 240,
+    marginRight: 40,
   },
-  floatingAddButtonTablet: {
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    bottom: 32,
-    right: 32,
+  adminActions: {
+    marginTop: 8,
+    gap: 8,
   },
-  floatingAddButtonText: {
+  editButton: {
+    backgroundColor: '#3b82f6',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  editButtonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 12,
+    fontWeight: '600',
   },
-  floatingAddButtonTextTablet: {
-    fontSize: 18,
+  deleteButton: {
+    backgroundColor: '#ef4444',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   kioskControls: {
     flexDirection: 'row',
@@ -771,6 +970,93 @@ const styles = StyleSheet.create({
   },
   modalToggleButtonTextActive: {
     color: '#ffffff',
+  },
+  editQuantityModalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 500,
+    elevation: 10,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  editQuantityModalContentTablet: {
+    padding: 32,
+    maxWidth: 600,
+  },
+  editQuantityModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  editQuantityModalTitleTablet: {
+    fontSize: 24,
+    marginBottom: 20,
+  },
+  editQuantityInfo: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 8,
+  },
+  editQuantityInfoTablet: {
+    fontSize: 16,
+  },
+  editQuantityInput: {
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#374151',
+    marginTop: 16,
+    marginBottom: 20,
+  },
+  editQuantityInputTablet: {
+    paddingVertical: 14,
+    fontSize: 18,
+  },
+  editQuantityButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  editQuantityCancelButton: {
+    flex: 1,
+    backgroundColor: '#f3f4f6',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  editQuantityCancelButtonTablet: {
+    paddingVertical: 14,
+  },
+  editQuantityCancelButtonText: {
+    color: '#374151',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  editQuantitySaveButton: {
+    flex: 1,
+    backgroundColor: '#FF8A50',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  editQuantitySaveButtonTablet: {
+    paddingVertical: 14,
+  },
+  editQuantitySaveButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

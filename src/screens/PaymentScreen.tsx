@@ -11,6 +11,9 @@ import { RootStackParamList } from '../utils/navigation.types';
 import { alashCloudAPI } from '../api/client';
 import { cartService } from '../services/cartService';
 import { updateOrder } from '../api/orders';
+import { reduceStockMultiple } from '../api/stock';
+import { deviceStorage } from '../api/storage';
+import { CartItem } from '../api/types';
 import PaymentSuccessContent from '../components/PaymentSuccessContent';
 
 type PaymentScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Payment'>;
@@ -52,13 +55,13 @@ const KaspiCenterLogo: React.FC<{ width?: number; height?: number }> = ({ width 
 );
 
 const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
-  const { orderId, payUrl, internalOrderId } = route.params;
+  const { orderId, payUrl, internalOrderId, cartItems } = route.params;
   const [remaining, setRemaining] = useState(TIMEOUT_MS);
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [unlockTimer, setUnlockTimer] = useState(UNLOCK_TIMER_SECONDS);
   const [signalSent, setSignalSent] = useState(false);
-  const [savedCartItems, setSavedCartItems] = useState<any[]>([]);
+  const [savedCartItems, setSavedCartItems] = useState<CartItem[]>([]);
   const timerRef = useRef<number | null>(null);
   const pollRef = useRef<number | null>(null);
   const unlockTimerRef = useRef<number | null>(null);
@@ -71,14 +74,14 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   const frontCamera = useCameraDevice('front');
 
   useEffect(() => {
-    // Получаем сумму из корзины и сохраняем товары
-    const cart = cartService.getCart();
-    const total = cart.items.reduce((sum, item) => {
+    // Используем товары из route.params (переданные из CartScreen) или из корзины
+    const itemsToUse = cartItems && cartItems.length > 0 ? cartItems : cartService.getCart().items;
+    const total = itemsToUse.reduce((sum, item) => {
       const price = item.product.selling_price || item.product.amount || 0;
       return sum + (price * item.quantity);
     }, 0);
     setPaymentAmount(total);
-    setSavedCartItems(cart.items);
+    setSavedCartItems(itemsToUse);
     mountedRef.current = true;
     const start = Date.now();
 
@@ -116,11 +119,40 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
           clearAll();
           setPaymentSuccess(true);
           (async () => {
+            // Обновляем статус заказа на paid
             const resp = await updateOrder(internalOrderId, { status: 'paid' });
             console.log('updateOrder(paid) response:', JSON.stringify(resp));
             if (!resp || resp.error) {
               console.error('updateOrder error:', resp && resp.error ? resp.error : resp);
             }
+            
+            // Уменьшаем остаток товаров на устройстве
+            try {
+              // Используем cartItems из route.params если savedCartItems пуст
+              const itemsToUse = (savedCartItems.length > 0 ? savedCartItems : (cartItems || []));
+              
+              const deviceInfo = await deviceStorage.getDeviceInfo();
+              
+              if (deviceInfo && itemsToUse.length > 0) {
+                const stockItems = itemsToUse
+                  .filter(item => !!item.product.invoice_product_id)
+                  .map(item => ({
+                    invoice_product_id: item.product.invoice_product_id,
+                    quantity: item.quantity,
+                  }));
+                
+                if (stockItems.length > 0) {
+                  const stockResults = await reduceStockMultiple(deviceInfo.device_id, stockItems);
+                  const failedItems = stockResults.filter(r => !r.success);
+                  if (failedItems.length > 0) {
+                    console.error('Ошибки уменьшения остатка:', failedItems);
+                  }
+                }
+              }
+            } catch (stockError) {
+              console.error('Ошибка уменьшения остатка товаров:', stockError);
+            }
+            
             playUnlockSignal();
           })();
         }

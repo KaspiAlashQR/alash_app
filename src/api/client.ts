@@ -1,5 +1,5 @@
 import { API_CONFIG } from './config';
-import { DeviceInfo, ApiResponse, isApiError, isDeviceInfo, Product, ProductsResponse, isProductsResponse, AddProductRequest, AddProductResponse, EditProductRequest, UploadImageResponse, CategoriesResponse } from './types';
+import { DeviceInfo, ApiResponse, isApiError, isDeviceInfo, Product, ProductsResponse, isProductsResponse, AddProductRequest, AddProductResponse, EditProductRequest, UploadImageResponse, CategoriesResponse, AssignProductItem, AssignProductsResponse, AvailableProductsResponse, OrdersResponse } from './types';
 
 class AlashCloudAPI {
   private baseURL = API_CONFIG.BASE_URL;
@@ -251,6 +251,44 @@ class AlashCloudAPI {
   async getTemperature(machid: string): Promise<ApiResponse<{ status: string; machid: string; value: number }>> {
     const endpoint = `/update_temp/${machid}`;
     return this.makeRequest<{ status: string; machid: string; value: number }>(endpoint, { method: 'GET' });
+  }
+
+  async assignProducts(deviceId: number, products: AssignProductItem[]): Promise<ApiResponse<AssignProductsResponse>> {
+    const endpoint = `${API_CONFIG.ENDPOINTS.ASSIGN_PRODUCTS}/${deviceId}/assign-products/${API_CONFIG.SESSION_ID}`;
+    const requestBody = { products };
+    const body = JSON.stringify(requestBody);
+    
+    const response = await this.makeRequest<AssignProductsResponse>(endpoint, {
+      method: 'POST',
+      body: body,
+    });
+    
+    return response;
+  }
+
+  async getAvailableProducts(deviceId: number): Promise<ApiResponse<AvailableProductsResponse>> {
+    const endpoint = `${API_CONFIG.ENDPOINTS.GET_AVAILABLE_PRODUCTS}/${deviceId}/available-products/${API_CONFIG.SESSION_ID}`;
+    const response = await this.makeRequest<any>(endpoint, { method: 'GET' });
+    
+    // Если rows — строка, парсим её как JSON
+    if (response && typeof response.rows === 'string') {
+      try {
+        response.rows = JSON.parse(response.rows);
+      } catch (e) {
+        console.error('Ошибка парсинга rows:', response.rows);
+        return { error: 'Ошибка парсинга списка доступных товаров' };
+      }
+    }
+    
+    return response as AvailableProductsResponse;
+  }
+
+  async getOrders(machid: number | string): Promise<ApiResponse<OrdersResponse>> {
+    // Преобразуем machid в число для URL
+    const machidNum = typeof machid === 'string' ? parseInt(machid, 10) : machid;
+    const endpoint = `${API_CONFIG.ENDPOINTS.GET_ORDERS}/${machidNum}?sessionid=${API_CONFIG.SESSION_ID}`;
+    const response = await this.makeRequest<OrdersResponse>(endpoint, { method: 'GET' });
+    return response;
   }
 }
 

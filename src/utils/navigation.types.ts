@@ -1,4 +1,4 @@
-import { Product } from '../api/types';
+import { Product, CartItem } from '../api/types';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -7,7 +7,7 @@ export type RootStackParamList = {
   AddProduct: { mode: 'add' | 'edit'; product?: Product };
   InitialSetup: undefined;
   Cart: undefined;
-  Payment: { orderId: number; payUrl: string; internalOrderId: number };
+  Payment: { orderId: number; payUrl: string; internalOrderId: number; cartItems: CartItem[] };
 };
 
 declare global {

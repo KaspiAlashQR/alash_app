@@ -177,10 +177,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   // Категории только из товаров
   const categories = getCategoriesFromProducts(products);
-  // Фильтрация
-  const filteredProducts = selectedCategoryId
+  // Фильтрация: показываем только товары с remaining_quantity > 0 (реальный остаток для продажи)
+  const filteredProducts = (selectedCategoryId
     ? products.filter((p) => p.category === selectedCategoryId)
-    : products;
+    : products).filter((p) => (p.remaining_quantity || 0) > 0);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#f8fafc', flexDirection: 'row' }] }>

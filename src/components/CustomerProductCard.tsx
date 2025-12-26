@@ -5,23 +5,26 @@ import { cartService } from '../services/cartService';
 
 interface CustomerProductCardProps {
   product: Product;
+  readOnly?: boolean; // Если true, отключает логику корзины и кнопки +/-
 }
 
 const { width } = Dimensions.get('window');
 const isTablet = width > 600;
 
-const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product }) => {
+const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product, readOnly = false }) => {
   const [quantity, setQuantity] = useState(0);
 
   useEffect(() => {
-    const unsubscribe = cartService.subscribe(() => {
+    if (!readOnly) {
+      const unsubscribe = cartService.subscribe(() => {
+        setQuantity(cartService.getItemQuantity(product.id));
+      });
+
       setQuantity(cartService.getItemQuantity(product.id));
-    });
 
-    setQuantity(cartService.getItemQuantity(product.id));
-
-    return unsubscribe;
-  }, [product.id]);
+      return unsubscribe;
+    }
+  }, [product.id, readOnly]);
 
   const handleCardPress = async () => {
     if (quantity === 0) {
@@ -45,12 +48,17 @@ const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product }) =>
     }
   };
 
+  const CardWrapper = readOnly ? View : TouchableOpacity;
+  const cardProps = readOnly ? {} : {
+    onPress: handleCardPress,
+    activeOpacity: quantity === 0 ? 0.7 : 1,
+    disabled: quantity > 0
+  };
+
   return (
-    <TouchableOpacity 
+    <CardWrapper 
       style={styles.card}
-      onPress={handleCardPress}
-      activeOpacity={quantity === 0 ? 0.7 : 1}
-      disabled={quantity > 0}
+      {...cardProps}
     >
       <View style={styles.imageContainer}>
         {product.image_url || product.url ? (
@@ -76,12 +84,12 @@ const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product }) =>
             {(product.selling_price || product.amount || 0).toLocaleString('ru-RU')} ₸
           </Text>
           
-          <Text style={styles.stockText}>
-            Остаток: {product.remaining_quantity || 0} шт
-          </Text>
+                <Text style={styles.stockText}>
+                  {product.remaining_quantity || 0} шт
+                </Text>
         </View>
         
-        {quantity > 0 && (
+        {!readOnly && quantity > 0 && (
           <View style={styles.actionsContainer}>
             <View style={styles.quantityContainer}>
               <TouchableOpacity
@@ -107,7 +115,7 @@ const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product }) =>
           </View>
         )}
       </View>
-    </TouchableOpacity>
+    </CardWrapper>
   );
 };
 

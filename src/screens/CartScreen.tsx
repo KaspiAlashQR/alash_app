@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Alert, Image } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Alert, Image, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../utils/navigation.types';
@@ -82,6 +82,8 @@ const CartTotal: React.FC<{ cart: Cart }> = ({ cart }) => {
 
 const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
   const [cart, setCart] = useState<Cart>({ items: [], total: 0 });
+  const [cancelTimer, setCancelTimer] = useState<number>(30); // 30 секунд
+  const scaleAnim = useRef(new Animated.Value(1)).current; // Анимация масштаба для кнопки "Отмена"
 
   useEffect(() => {
     const unsubscribe = cartService.subscribe((updatedCart) => {
@@ -92,6 +94,72 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
 
     return unsubscribe;
   }, []);
+
+  // Сброс таймера при изменении корзины
+  useEffect(() => {
+    if (cart.items.length === 0) {
+      setCancelTimer(30); // Сбрасываем таймер если корзина пуста
+      return;
+    }
+    // Сбрасываем таймер при изменении корзины (добавлении/удалении товаров)
+    setCancelTimer(30);
+  }, [cart.items.length]);
+
+  // Пульсирующая анимация для кнопки "Отмена"
+  useEffect(() => {
+    if (cart.items.length === 0) {
+      // Останавливаем анимацию если корзина пуста
+      scaleAnim.setValue(1);
+      return;
+    }
+
+    // Создаем пульсирующую анимацию
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.1, // Увеличиваем на 10%
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1, // Возвращаем к исходному размеру
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    pulseAnimation.start();
+
+    return () => {
+      pulseAnimation.stop();
+      scaleAnim.setValue(1);
+    };
+  }, [cart.items.length, scaleAnim]);
+
+  // Таймер обратного отсчета для кнопки "Отмена"
+  useEffect(() => {
+    if (cart.items.length === 0) {
+      return; // Не запускаем таймер если корзина пуста
+    }
+
+    const interval = setInterval(() => {
+      setCancelTimer((prev) => {
+        if (prev <= 1) {
+          // Таймер истек - очищаем корзину и возвращаемся на Home
+          clearInterval(interval);
+          (async () => {
+            await cartService.clearCart();
+            navigation.navigate('Home');
+          })();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [cart.items.length, navigation]);
 
   const handleQuantityChange = (productId: number, newQuantity: number) => {
     if (newQuantity <= 0) {
@@ -113,22 +181,17 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
     handleQuantityChange(productId, currentQuantity - 1);
   };
 
-  const handleClearCart = () => {
-    Alert.alert(
-      'Отменить покупки',
-      'Очистить корзину и вернуться к товарам?',
-      [
-        { text: 'Нет', style: 'cancel' },
-        { 
-          text: 'Да', 
-          style: 'destructive',
-          onPress: async () => {
-            await cartService.clearCart();
-            navigation.navigate('Home');
-          }
-        }
-      ]
-    );
+  const handleClearCart = async () => {
+    // Очищаем корзину и возвращаемся на Home
+    await cartService.clearCart();
+    navigation.navigate('Home');
+  };
+
+  // Форматирование времени для таймера (MM:SS)
+  const formatTimer = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   const handleCheckout = async () => {
@@ -172,7 +235,14 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
       }
       const orderId = (createResp as any).id as number;
       const payUrl = `https://kaspi.kz/pay/AlashCoffeeNew?16246=${orderId}`;
-      navigation.navigate('Payment', { orderId, payUrl, internalOrderId });
+      
+      // Сохраняем товары из корзины для уменьшения остатка после оплаты
+      navigation.navigate('Payment', { 
+        orderId, 
+        payUrl, 
+        internalOrderId,
+        cartItems: cart.items, // Передаем товары через route.params
+      });
     } catch (err) {
       console.error('checkout error', err);
       Alert.alert('Ошибка', 'Произошла ошибка при оформлении заказа');
@@ -246,12 +316,16 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
           <CartTotal cart={cart} />
           
           <View style={styles.buttonRow}>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={handleClearCart}
-            >
-              <Text style={styles.cancelButtonText}>Отмена</Text>
-            </TouchableOpacity>
+            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={handleClearCart}
+              >
+                <Text style={styles.cancelButtonText}>
+                  Отмена {formatTimer(cancelTimer)}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
             
             <TouchableOpacity
               style={styles.checkoutButton}

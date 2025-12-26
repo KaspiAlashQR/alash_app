@@ -3,6 +3,7 @@ export interface DeviceInfo {
   device_name: string;
   machid: string;
   bin: string;
+  user_id: number;
 }
 
 export interface Product {
@@ -131,4 +132,58 @@ export interface GoOrderResponse {
 export interface GoOrderUpdateFields {
   status?: 'pending' | 'paid' | 'cancelled';
   product_name?: any; // если потребуется обновлять
+}
+
+export interface AssignProductItem {
+  invoice_product_id: number;
+  quantity: number;
+}
+
+export interface AssignProductsRequest {
+  products: AssignProductItem[];
+}
+
+export interface AssignProductsResponse {
+  OK: boolean;
+  error?: string;
+}
+
+export interface AvailableProduct {
+  id: number; // invoice_product_id
+  invoice_id: number;
+  invoice_name: string;
+  name_ru: string;
+  name_kz: string;
+  category: string;
+  available_quantity: number; // остаток на складе
+  selling_price: number;
+  purchase_price: number;
+  image_url: string;
+  assigned_quantity: number; // сколько уже назначено на это устройство
+  remaining_quantity: number; // сколько осталось на этом устройстве после продаж
+}
+
+export interface AvailableProductsResponse {
+  rows: AvailableProduct[];
+}
+
+export interface OrderProduct {
+  name: string;
+  quantity: number;
+}
+
+export interface Order {
+  id: number;
+  amount: number;
+  device_id: number;
+  product_name: OrderProduct[];
+  url: string;
+  status: 'pending' | 'paid' | 'completed' | 'cancelled' | 'failed';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrdersResponse {
+  orders: Order[];
+  error?: string;
 }
