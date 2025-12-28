@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, Dimensions, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, Dimensions, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { KioskModule } from '../utils/KioskModule';
@@ -72,56 +72,61 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <View style={styles.inputContainer}>
-          <Text style={[styles.inputLabel, isTablet && styles.inputLabelTablet]}>
-            PIN-код
-          </Text>
-          <TextInput
-            style={[styles.input, isTablet && styles.inputTablet]}
-            value={pin}
-            onChangeText={handlePinChange}
-            keyboardType="numeric"
-            secureTextEntry
-            placeholder="••••••••••••"
-            placeholderTextColor="#9ca3af"
-            maxLength={6}
-            accessibilityLabel="Поле ввода PIN-кода"
-            editable={!isLoading}
+        <View style={styles.formWrapper}>
+          {/* Логотип в начале */}
+          <Image 
+            source={require('../orange.png')} 
+            style={[styles.logoImage, isTablet && styles.logoImageTablet]}
+            resizeMode="contain"
           />
 
+          {/* Поле ввода */}
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={[styles.input, isTablet && styles.inputTablet]}
+              value={pin}
+              onChangeText={handlePinChange}
+              keyboardType="numeric"
+              secureTextEntry
+              placeholder="••••••••••••"
+              placeholderTextColor="#9ca3af"
+              maxLength={6}
+              accessibilityLabel="Поле ввода PIN-кода"
+              editable={!isLoading}
+            />
+          </View>
+
+          {/* Кнопки */}
+          <View style={styles.buttonsContainer}>
+            <TouchableOpacity
+              onPress={handleSubmit}
+              disabled={isLoading || pin.length === 0}
+              style={[
+                styles.submitButton,
+                isTablet && styles.submitButtonTablet,
+                (isLoading || pin.length === 0) && styles.disabledButton
+              ]}
+              accessibilityLabel="Войти в систему"
+              accessibilityRole="button"
+            >
+              <Text style={[styles.submitButtonText, isTablet && styles.submitButtonTextTablet]}>
+                {isLoading ? 'Проверка...' : 'Войти'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleGoBack}
+              disabled={isLoading}
+              style={[styles.backButton, isTablet && styles.backButtonTablet]}
+              accessibilityLabel="Вернуться назад"
+              accessibilityRole="button"
+            >
+              <Text style={[styles.backButtonText, isTablet && styles.backButtonTextTablet]}>
+                Отмена
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-
-        <View style={styles.buttonsContainer}>
-          <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={isLoading || pin.length === 0}
-            style={[
-              styles.submitButton,
-              isTablet && styles.submitButtonTablet,
-              (isLoading || pin.length === 0) && styles.disabledButton
-            ]}
-            accessibilityLabel="Войти в систему"
-            accessibilityRole="button"
-          >
-            <Text style={[styles.submitButtonText, isTablet && styles.submitButtonTextTablet]}>
-              {isLoading ? 'Проверка...' : 'Войти'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleGoBack}
-            disabled={isLoading}
-            style={[styles.backButton, isTablet && styles.backButtonTablet]}
-            accessibilityLabel="Вернуться назад"
-            accessibilityRole="button"
-          >
-            <Text style={[styles.backButtonText, isTablet && styles.backButtonTextTablet]}>
-              Назад
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        
       </View>
     </SafeAreaView>
   );
@@ -138,17 +143,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 24,
   },
+  formWrapper: {
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 400,
+    padding: 20,
+    borderRadius: 12,
+  },
+  logoImage: {
+    width: isTablet ? 200 : 150,
+    height: isTablet ? 200 : 150,
+  },
+  logoImageTablet: {
+    width: 250,
+    height: 250,
+  },
   inputContainer: {
     width: '100%',
     maxWidth: 400,
-    marginBottom: 32,
+    marginBottom: 16,
+    marginTop: -75,
   },
   inputLabel: {
-    fontSize: 16,
+    fontSize: 20,
     color: '#374151',
-    marginBottom: 12,
+    marginBottom: 0,
     textAlign: 'center',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   inputLabelTablet: {
     fontSize: 20,

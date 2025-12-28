@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Alert, ActivityIndicator, Platform, Modal, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Alert, ActivityIndicator, Platform, Modal, TextInput, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import Sound from 'react-native-sound';
 import { KioskModule, KioskStatus } from '../utils/KioskModule';
 import { alashCloudAPI } from '../api/client';
 import { deviceStorage } from '../api/storage';
@@ -157,6 +158,23 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
     navigation.navigate('Home');
   };
 
+  const playUnlockSignal = () => {
+    const unlockSound = new Sound('unlock_signal.wav', Sound.MAIN_BUNDLE, (error) => {
+      if (error) {
+        console.log('Failed to load sound', error);
+        return;
+      }
+      unlockSound.play((success) => {
+        if (success) {
+          console.log('Unlock signal played successfully');
+        } else {
+          console.log('Unlock signal playback failed');
+        }
+        unlockSound.release();
+      });
+    });
+  };
+
   const handleDeleteProduct = async (product: Product) => {
     if (!deviceId || !deviceInfo) return;
 
@@ -309,14 +327,25 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
           GoMarket Admin
         </Text>
         
-        <TouchableOpacity
-          onPress={handleLogout}
-          style={[styles.logoutButton, isTablet && styles.logoutButtonTablet]}
-        >
-          <Text style={[styles.logoutButtonText, isTablet && styles.logoutButtonTextTablet]}>
-            Выйти
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            onPress={playUnlockSignal}
+            style={[styles.unlockButton, isTablet && styles.unlockButtonTablet]}
+          >
+            <Text style={[styles.unlockButtonText, isTablet && styles.unlockButtonTextTablet]}>
+              Открыть замок
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={[styles.logoutButton, isTablet && styles.logoutButtonTablet]}
+          >
+            <Text style={[styles.logoutButtonText, isTablet && styles.logoutButtonTextTablet]}>
+              Выйти
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Табы */}
@@ -684,7 +713,7 @@ const styles = StyleSheet.create({
   },
   navHeader: {
     backgroundColor: '#fff',
-    paddingHorizontal: 0,
+    paddingHorizontal: 16,
     paddingVertical: 24,
     flexDirection: 'row',
     alignItems: 'center',
@@ -726,6 +755,33 @@ const styles = StyleSheet.create({
   },
   logoutButtonTextTablet: {
     fontSize: 16,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  unlockButton: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: '#10b981',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  unlockButtonTablet: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  unlockButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  unlockButtonTextTablet: {
+    fontSize: 18,
   },
   contentSection: {
     flex: 1,

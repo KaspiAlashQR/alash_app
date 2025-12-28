@@ -1,5 +1,5 @@
-# Структура проекта AlashCloudApp
-AlashCloudApp/
+# Структура проекта GoMarket
+GoMarket/
 │
 ├─ android/                  # Нативная часть Android (Gradle, сборка APK)
 ├─ ios/                      # Нативная часть iOS

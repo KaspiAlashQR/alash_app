@@ -30,7 +30,7 @@ const isTablet = width > 600;
 const QR_SIZE = isTablet ? 320 : 260;
 const POLL_INTERVAL_MS = 2000;
 const TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
-const UNLOCK_TIMER_SECONDS = 10; // Таймер открытия замка
+const UNLOCK_TIMER_SECONDS = 20; // Таймер открытия замка
 
 const KaspiLogo: React.FC<{ width?: number; height?: number }> = ({ width = 51, height = 51 }) => (
   <Svg width={width} height={height} viewBox="0 0 51 51" fill="none">
@@ -65,7 +65,6 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   const timerRef = useRef<number | null>(null);
   const pollRef = useRef<number | null>(null);
   const unlockTimerRef = useRef<number | null>(null);
-  const cameraTimerRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
 
   // Состояние камеры
@@ -201,33 +200,23 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
 
       setIsCameraActive(true);
       console.log('Камера включена');
-
-      // Автоматически выключить камеру через 10 секунд
-      cameraTimerRef.current = setTimeout(() => {
-        setIsCameraActive(false);
-        console.log('Камера автоматически выключена через 10 секунд');
-      }, UNLOCK_TIMER_SECONDS * 1000) as unknown as number;
     } catch (error) {
       console.error('Ошибка при включении камеры:', error);
     }
   };
 
   const stopCamera = () => {
-    if (cameraTimerRef.current) {
-      clearTimeout(cameraTimerRef.current);
-      cameraTimerRef.current = null;
-    }
     setIsCameraActive(false);
     console.log('Камера выключена');
   };
 
   const playUnlockSignal = () => {
+    startCamera();
     const unlockSound = new Sound('unlock_signal.wav', Sound.MAIN_BUNDLE, (error) => {
       if (error) {
         console.log('Failed to load sound', error);
         setSignalSent(false);
         startUnlockTimer();
-        startCamera(); // Включаем камеру
         return;
       }
       unlockSound.play((success) => {
@@ -235,12 +224,10 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
           console.log('Unlock signal played successfully');
           setSignalSent(true);
           startUnlockTimer();
-          startCamera(); // Включаем камеру
         } else {
           console.log('Unlock signal playback failed');
           setSignalSent(false);
           startUnlockTimer();
-          startCamera(); // Включаем камеру даже если звук не сработал
         }
         unlockSound.release();
       });

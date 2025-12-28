@@ -1,4 +1,4 @@
-package com.alashcloudapp
+package com.gomarket
 
 import android.app.Activity
 import android.content.Intent
@@ -45,7 +45,7 @@ class NormalLauncherActivity : Activity() {
 
         // Заголовок
         val titleText = TextView(this).apply {
-            text = "AlashCloud Launcher"
+            text = "Go Market Launcher"
             textSize = 24f
             setPadding(0, 0, 0, 32)
         }

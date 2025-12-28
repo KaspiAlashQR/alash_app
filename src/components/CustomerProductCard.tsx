@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    height: isTablet ? 180 : 160,
+    height: isTablet ? 172 : 152,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     overflow: 'hidden',

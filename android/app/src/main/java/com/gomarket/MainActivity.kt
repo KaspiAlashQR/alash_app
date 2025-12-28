@@ -1,4 +1,4 @@
-package com.alashcloudapp
+package com.gomarket
 
 import android.app.Activity
 import android.app.admin.DevicePolicyManager
@@ -48,7 +48,7 @@ class MainActivity : ReactActivity() {
    * Returns the name of the main component registered from JavaScript. This is used to schedule
    * rendering of the component.
    */
-  override fun getMainComponentName(): String = "AlashCloudApp"
+  override fun getMainComponentName(): String = "gomarket"
 
   /**
    * Returns the instance of the [ReactActivityDelegate]. We use [DefaultReactActivityDelegate]

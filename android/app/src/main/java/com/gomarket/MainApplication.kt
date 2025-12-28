@@ -1,4 +1,4 @@
-package com.alashcloudapp
+package com.gomarket
 
 import android.app.Application
 import com.facebook.react.PackageList

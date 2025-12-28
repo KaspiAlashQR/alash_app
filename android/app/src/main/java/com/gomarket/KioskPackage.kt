@@ -1,4 +1,4 @@
-package com.alashcloudapp
+package com.gomarket
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule

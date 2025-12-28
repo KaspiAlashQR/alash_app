@@ -7,7 +7,8 @@ import {
   Alert, 
   StyleSheet, 
   Dimensions, 
-  ActivityIndicator 
+  ActivityIndicator,
+  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -43,7 +44,7 @@ const InitialSetupScreen: React.FC<InitialSetupScreenProps> = ({ navigation }) =
 
   const handleSubmit = async () => {
     if (machineId.trim().length === 0) {
-      Alert.alert('Ошибка', 'Введите ID машины');
+      Alert.alert('Ошибка', 'Введите ID маркета');
       return;
     }
 
@@ -91,64 +92,53 @@ const InitialSetupScreen: React.FC<InitialSetupScreenProps> = ({ navigation }) =
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-
-        <View style={styles.header}>
-          <Text style={[styles.title, isTablet && styles.titleTablet]}>
-            AlashCloud
-          </Text>
-          <Text style={[styles.subtitle, isTablet && styles.subtitleTablet]}>
-            Первичная настройка
-          </Text>
-        </View>
-
-
-        <View style={styles.form}>
-          <Text style={[styles.label, isTablet && styles.labelTablet]}>
-            ID машины
-          </Text>
-          
-          <TextInput
-            style={[styles.input, isTablet && styles.inputTablet]}
-            value={machineId}
-            onChangeText={handleMachineIdChange}
-            placeholder="Введите ID вашей машины"
-            placeholderTextColor="#999"
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={20}
-            editable={!isLoading}
-            keyboardType="ascii-capable"
+        <View style={styles.formWrapper}>
+          {/* Логотип в начале */}
+          <Image 
+            source={require('../orange.png')} 
+            style={[styles.logoImage, isTablet && styles.logoImageTablet]}
+            resizeMode="contain"
           />
-          
-          <Text style={[styles.hint, isTablet && styles.hintTablet]}>
-            ID машины можно найти на корпусе устройства
-          </Text>
 
+          {/* Поле ввода */}
+          <View style={styles.inputContainer}>
+            <Text style={[styles.label, isTablet && styles.labelTablet]}>
+              ID маркета
+            </Text>
+            <TextInput
+              style={[styles.input, isTablet && styles.inputTablet]}
+              value={machineId}
+              onChangeText={handleMachineIdChange}
+              placeholder="Введите ID вашего маркета"
+              placeholderTextColor="#9ca3af"
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={20}
+              editable={!isLoading}
+              keyboardType="ascii-capable"
+            />
+          </View>
 
-          <TouchableOpacity
-            style={[
-              styles.submitButton,
-              isTablet && styles.submitButtonTablet,
-              isLoading && styles.submitButtonDisabled
-            ]}
-            onPress={handleSubmit}
-            disabled={isLoading || machineId.trim().length === 0}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#FFF" size={isTablet ? "large" : "small"} />
-            ) : (
-              <Text style={[styles.submitButtonText, isTablet && styles.submitButtonTextTablet]}>
-                Подключить машину
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-
-        <View style={styles.footer}>
-          <Text style={[styles.footerText, isTablet && styles.footerTextTablet]}>
-            После подключения вы сможете управлять машиной через панель администратора
-          </Text>
+          {/* Кнопка */}
+          <View style={styles.buttonsContainer}>
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                isTablet && styles.submitButtonTablet,
+                (isLoading || machineId.trim().length === 0) && styles.submitButtonDisabled
+              ]}
+              onPress={handleSubmit}
+              disabled={isLoading || machineId.trim().length === 0}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#FFF" size={isTablet ? "large" : "small"} />
+              ) : (
+                <Text style={[styles.submitButtonText, isTablet && styles.submitButtonTextTablet]}>
+                  Подключить маркет
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </SafeAreaView>
@@ -158,108 +148,106 @@ const InitialSetupScreen: React.FC<InitialSetupScreenProps> = ({ navigation }) =
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
+    backgroundColor: '#f8fafc',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 32,
     justifyContent: 'center',
-  },
-  header: {
     alignItems: 'center',
-    marginBottom: 48,
+    paddingHorizontal: 24,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1A202C',
-    marginBottom: 8,
+  formWrapper: {
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 400,
+    padding: 20,
+    borderRadius: 12,
   },
-  titleTablet: {
-    fontSize: 36,
+  logoImage: {
+    width: isTablet ? 200 : 150,
+    height: isTablet ? 200 : 150,
+    marginBottom: 0,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#718096',
+  logoImageTablet: {
+    width: 250,
+    height: 250,
   },
-  subtitleTablet: {
-    fontSize: 20,
-  },
-  form: {
-    marginBottom: 48,
+  inputContainer: {
+    width: '100%',
+    maxWidth: 400,
+    marginBottom: 0,
+    marginTop: -50,
   },
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2D3748',
+    color: '#374151',
     marginBottom: 12,
+    textAlign: 'left',
   },
   labelTablet: {
-    fontSize: 20,
+    fontSize: 18,
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'white',
+    borderWidth: 2,
+    borderColor: '#d1d5db',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
     fontSize: 16,
-    color: '#1A202C',
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
+    color: '#1f2937',
+    marginBottom: 8,
   },
   inputTablet: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    fontSize: 20,
-    borderRadius: 16,
+    paddingVertical: 18,
+    fontSize: 18,
   },
   hint: {
     fontSize: 14,
-    color: '#718096',
-    marginTop: 8,
-    marginBottom: 24,
-    textAlign: 'center',
+    color: '#6b7280',
+    marginTop: 4,
+    marginBottom: 0,
+    textAlign: 'left',
   },
   hintTablet: {
     fontSize: 16,
   },
+  buttonsContainer: {
+    width: '100%',
+    maxWidth: 400,
+    marginTop: 0,
+  },
   submitButton: {
-    backgroundColor: '#3182CE',
-    borderRadius: 12,
+    backgroundColor: '#FF8A50',
     paddingVertical: 16,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#FF8A50',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
     minHeight: 48,
   },
   submitButtonTablet: {
     paddingVertical: 20,
     minHeight: 60,
-    borderRadius: 16,
   },
   submitButtonDisabled: {
-    backgroundColor: '#A0AEC0',
+    backgroundColor: '#9ca3af',
   },
   submitButtonText: {
-    color: '#FFFFFF',
+    color: 'white',
     fontSize: 16,
     fontWeight: '600',
   },
   submitButtonTextTablet: {
-    fontSize: 20,
-  },
-  footer: {
-    alignItems: 'center',
-  },
-  footerText: {
-    fontSize: 14,
-    color: '#718096',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  footerTextTablet: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 18,
   },
 });
 

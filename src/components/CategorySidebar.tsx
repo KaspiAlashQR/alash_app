@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Image } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 
@@ -36,7 +36,12 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({ categories, selectedC
 
   return (
     <View style={[styles.sidebar, { width: sidebarWidth, backgroundColor: '#f3f4f6', borderRadius: 20, paddingVertical: 12, paddingHorizontal: 0, shadowOpacity: 0.04 }, style]}> 
-      <ScrollView contentContainerStyle={[styles.sidebarContent, { flexGrow: 1 }]} showsVerticalScrollIndicator={false}>
+      <Image 
+        source={require('../Icon.png')} 
+        style={[styles.logo, { width: categoryItemWidth, height: categoryItemWidth }]}
+        resizeMode="contain"
+      />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.sidebarContent} showsVerticalScrollIndicator={false}>
         {categories.map((cat) => {
           const iconName = iconNames[cat] || 'shape';
 
@@ -84,6 +89,11 @@ const styles = StyleSheet.create({
   },
   sidebarContent: {
     alignItems: 'center'
+  },
+  logo: {
+    width: '100%',
+    height: '100%',
+    marginBottom: 16,
   },
   categoryItem: {
     alignItems: 'center',

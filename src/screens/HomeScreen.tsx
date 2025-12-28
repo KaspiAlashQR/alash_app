@@ -30,13 +30,14 @@ const { width } = Dimensions.get('window');
 const isTablet = width > 600;
 
 
-// Категории только из товаров
+// Категории только из товаров в наличии
 // import { Product } from '../api/types';
 type CategoryType = string;
 function getCategoriesFromProducts(products: Product[]): CategoryType[] {
   const set = new Set<string>();
   products.forEach((p: Product) => {
-    if (p.category && typeof p.category === 'string' && p.category.trim() !== '') {
+    // Добавляем категорию только если товар есть в наличии (remaining_quantity > 0)
+    if (p.category && typeof p.category === 'string' && p.category.trim() !== '' && (p.remaining_quantity || 0) > 0) {
       set.add(p.category.trim());
     }
   });
@@ -153,9 +154,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.setupContainer}>
-          <Text style={[styles.welcomeTitle, isTablet && styles.welcomeTitleTablet]}>
-            Добро пожаловать в AlashCloud
-          </Text>
           
           <Text style={[styles.setupMessage, isTablet && styles.setupMessageTablet]}>
             Для начала работы необходимо подключить ваше устройство к системе
@@ -216,25 +214,30 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 </Text>
               </View>
             ) : (
-              <View style={{ width: 800, marginLeft: 'auto', marginRight: 0 }}>
+              <View style={{ width: 800, alignSelf: 'center' }}>
                 {(() => {
                   const rows = [];
-                  for (let i = 0; i < filteredProducts.length; i += 3) {
+                  for (let i = 0; i < filteredProducts.length; i += 4) {
                     rows.push(
                       <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 }}>
                         {filteredProducts[i] && (
-                          <View style={{ width: 240, marginRight: 40 }}>
+                          <View style={{ width: 170, marginRight: 40 }}>
                             <CustomerProductCard product={filteredProducts[i]} />
                           </View>
                         )}
                         {filteredProducts[i + 1] && (
-                          <View style={{ width: 240, marginRight: 40 }}>
+                          <View style={{ width: 170, marginRight: 40 }}>
                             <CustomerProductCard product={filteredProducts[i + 1]} />
                           </View>
                         )}
                         {filteredProducts[i + 2] && (
-                          <View style={{ width: 240 }}>
+                          <View style={{ width: 170, marginRight: 40 }}>
                             <CustomerProductCard product={filteredProducts[i + 2]} />
+                          </View>
+                        )}
+                        {filteredProducts[i + 3] && (
+                          <View style={{ width: 170 }}>
+                            <CustomerProductCard product={filteredProducts[i + 3]} />
                           </View>
                         )}
                       </View>
@@ -309,11 +312,11 @@ const styles = StyleSheet.create({
     lineHeight: 30,
   },
   setupButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#FF8A50',
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 14,
-    shadowColor: '#3b82f6',
+    shadowColor: '#FF8A50',
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },

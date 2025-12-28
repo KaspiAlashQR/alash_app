@@ -1,4 +1,4 @@
-package com.alashcloudapp
+package com.gomarket
 
 import android.content.BroadcastReceiver
 import android.content.Context

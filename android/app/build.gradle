@@ -77,9 +77,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.alashcloudapp"
+    namespace "com.gomarket"
     defaultConfig {
-        applicationId "com.alashcloudapp"
+        applicationId "com.gomarket"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

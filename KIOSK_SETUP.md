@@ -50,13 +50,13 @@ D:\Workspace\alash_app\android\app\build\outputs\apk\release\app-release.apk
 
 ### Шаг 6: Установка как Device Owner
 ```bash
-& "$env:ANDROID_HOME\platform-tools\adb.exe" shell dpm set-device-owner com.alashcloudapp/.KioskAdminReceiver
+& "$env:ANDROID_HOME\platform-tools\adb.exe" shell dpm set-device-owner com.gomarket/.KioskAdminReceiver
 ```
 
 **Ожидаемый результат:**
 ```
-Success: Device owner set to package com.alashcloudapp
-Active admin set to com.alashcloudapp/.KioskAdminReceiver
+Success: Device owner set to package com.gomarket
+Active admin set to com.gomarket/.KioskAdminReceiver
 ```
 
 ### Шаг 7: Проверка установки Device Owner
@@ -67,16 +67,16 @@ Active admin set to com.alashcloudapp/.KioskAdminReceiver
 **Должно показать:**
 ```
 Device Owner:
-  admin=ComponentInfo{com.alashcloudapp/com.alashcloudapp.KioskAdminReceiver}
+  admin=ComponentInfo{com.gomarket/com.gomarket.KioskAdminReceiver}
   name=
-  package=com.alashcloudapp
+  package=com.gomarket
 ```
 
 ## Активация киоск режима
 
 ### Шаг 8: Запуск приложения
 ```bash
-& "$env:ANDROID_HOME\platform-tools\adb.exe" shell am start -n com.alashcloudapp/.MainActivity
+& "$env:ANDROID_HOME\platform-tools\adb.exe" shell am start -n com.gomarket/.MainActivity
 ```
 
 ### Шаг 9: Проверка логов киоска
@@ -132,7 +132,7 @@ D AlashKiosk: Lock Task активирован!
 **Решение:**
 ```bash
 # Удалить старую версию
-& "$env:ANDROID_HOME\platform-tools\adb.exe" shell pm uninstall com.alashcloudapp
+& "$env:ANDROID_HOME\platform-tools\adb.exe" shell pm uninstall com.gomarket
 
 # Переустановить APK
 & "$env:ANDROID_HOME\platform-tools\adb.exe" install "путь\к\app-release.apk"
@@ -145,12 +145,12 @@ D AlashKiosk: Lock Task активирован!
 & "$env:ANDROID_HOME\platform-tools\adb.exe" shell dumpsys activity | findstr -i lock
 
 # Принудительная активация
-& "$env:ANDROID_HOME\platform-tools\adb.exe" shell appops set com.alashcloudapp SYSTEM_ALERT_WINDOW allow
+& "$env:ANDROID_HOME\platform-tools\adb.exe" shell appops set com.gomarket SYSTEM_ALERT_WINDOW allow
 ```
 
 ## Удаление Device Owner (если нужно)
 ```bash
-& "$env:ANDROID_HOME\platform-tools\adb.exe" shell dpm remove-active-admin com.alashcloudapp/.KioskAdminReceiver
+& "$env:ANDROID_HOME\platform-tools\adb.exe" shell dpm remove-active-admin com.gomarket/.KioskAdminReceiver
 ```
 
 ## Финальная проверка ✅
@@ -174,7 +174,7 @@ D AlashKiosk: Lock Task активирован!
 & "$env:ANDROID_HOME\platform-tools\adb.exe" install app-release.apk
 
 # Установка Device Owner
-& "$env:ANDROID_HOME\platform-tools\adb.exe" shell dpm set-device-owner com.alashcloudapp/.KioskAdminReceiver
+& "$env:ANDROID_HOME\platform-tools\adb.exe" shell dpm set-device-owner com.gomarket/.KioskAdminReceiver
 
 # Логи киоска
 & "$env:ANDROID_HOME\platform-tools\adb.exe" logcat | findstr AlashKiosk
@@ -197,7 +197,7 @@ D AlashKiosk: Lock Task активирован!
 
 ## Удаление Device Owner (если нужно)
 ```bash
-adb shell dpm remove-active-admin com.alashcloudapp/.KioskAdminReceiver
+adb shell dpm remove-active-admin com.gomarket/.KioskAdminReceiver
 ```
 
 ## После установки Device Owner
