@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { NativeModules } from 'react-native';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -11,7 +12,7 @@ import { RootStackParamList } from '../utils/navigation.types';
 import { alashCloudAPI } from '../api/client';
 import { cartService } from '../services/cartService';
 import { updateOrder } from '../api/orders';
-import { reduceStockMultiple } from '../api/stock';
+import { reduceStockFIFO } from '../api/stock';
 import { deviceStorage } from '../api/storage';
 import { CartItem } from '../api/types';
 import PaymentSuccessContent from '../components/PaymentSuccessContent';
@@ -29,8 +30,8 @@ const isTablet = width > 600;
 
 const QR_SIZE = isTablet ? 320 : 260;
 const POLL_INTERVAL_MS = 2000;
-const TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
-const UNLOCK_TIMER_SECONDS = 20; // Таймер открытия замка
+const TIMEOUT_MS = 2 * 60 * 1000;
+const UNLOCK_TIMER_SECONDS = 20;
 
 const KaspiLogo: React.FC<{ width?: number; height?: number }> = ({ width = 51, height = 51 }) => (
   <Svg width={width} height={height} viewBox="0 0 51 51" fill="none">
@@ -62,18 +63,20 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   const [unlockTimer, setUnlockTimer] = useState(UNLOCK_TIMER_SECONDS);
   const [signalSent, setSignalSent] = useState(false);
   const [savedCartItems, setSavedCartItems] = useState<CartItem[]>([]);
+  const [showUnlockInstruction, setShowUnlockInstruction] = useState(false);
   const timerRef = useRef<number | null>(null);
   const pollRef = useRef<number | null>(null);
   const unlockTimerRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
+  const backgroundMusicRef = useRef<Sound | null>(null);
+  const musicIntervalRef = useRef<number | null>(null);
+  const unlockInstructionTimeoutRef = useRef<number | null>(null);
 
-  // Состояние камеры
   const [isCameraActive, setIsCameraActive] = useState(false);
   const { hasPermission, requestPermission } = useCameraPermission();
   const frontCamera = useCameraDevice('front');
 
   useEffect(() => {
-    // Используем товары из route.params (переданные из CartScreen) или из корзины
     const itemsToUse = cartItems && cartItems.length > 0 ? cartItems : cartService.getCart().items;
     const total = itemsToUse.reduce((sum, item) => {
       const price = item.product.selling_price || item.product.amount || 0;
@@ -102,7 +105,6 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
             routes: [{ name: 'Home' }],
           });
         })();
-        // Alert removed
       }
     }, 1000) as unknown as number;
 
@@ -116,32 +118,37 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
 
         if (response === true) {
           clearAll();
+          setShowUnlockInstruction(true);
           setPaymentSuccess(true);
+          playUnlockSignal();
+          unlockInstructionTimeoutRef.current = setTimeout(() => {
+            setShowUnlockInstruction(false);
+            setUnlockTimer(20); 
+            startUnlockTimer();
+            playSuccessSound();
+            startBackgroundMusic();
+          }, 5000) as unknown as number;
           (async () => {
-            // Обновляем статус заказа на paid
             const resp = await updateOrder(internalOrderId, { status: 'paid' });
             console.log('updateOrder(paid) response:', JSON.stringify(resp));
             if (!resp || resp.error) {
               console.error('updateOrder error:', resp && resp.error ? resp.error : resp);
             }
-            
-            // Уменьшаем остаток товаров на устройстве
+
             try {
-              // Используем cartItems из route.params если savedCartItems пуст
               const itemsToUse = (savedCartItems.length > 0 ? savedCartItems : (cartItems || []));
-              
               const deviceInfo = await deviceStorage.getDeviceInfo();
-              
               if (deviceInfo && itemsToUse.length > 0) {
-                const stockItems = itemsToUse
-                  .filter(item => !!item.product.invoice_product_id)
-                  .map(item => ({
-                    invoice_product_id: item.product.invoice_product_id,
-                    quantity: item.quantity,
-                  }));
-                
+
+                const productMap: Record<number, number> = {};
+                for (const item of itemsToUse) {
+                  const pid = item.product.product_id;
+                  if (!pid) continue;
+                  productMap[pid] = (productMap[pid] || 0) + item.quantity;
+                }
+                const stockItems = Object.entries(productMap).map(([product_id, quantity]) => ({ product_id: Number(product_id), quantity }));
                 if (stockItems.length > 0) {
-                  const stockResults = await reduceStockMultiple(deviceInfo.device_id, stockItems);
+                  const stockResults = await reduceStockFIFO(deviceInfo.device_id, stockItems);
                   const failedItems = stockResults.filter(r => !r.success);
                   if (failedItems.length > 0) {
                     console.error('Ошибки уменьшения остатка:', failedItems);
@@ -152,7 +159,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
               console.error('Ошибка уменьшения остатка товаров:', stockError);
             }
             
-            playUnlockSignal();
+            
           })();
         }
       } catch (err) {
@@ -167,7 +174,12 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
       mountedRef.current = false;
       clearAll();
       clearUnlockTimer();
+      stopBackgroundMusic();
       stopCamera();
+      if (unlockInstructionTimeoutRef.current) {
+        clearTimeout(unlockInstructionTimeoutRef.current as any);
+        unlockInstructionTimeoutRef.current = null;
+      }
     };
 
     function clearAll() {
@@ -184,7 +196,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
 
   const startCamera = async () => {
     try {
-      // Проверяем разрешения
+
       if (!hasPermission) {
         const granted = await requestPermission();
         if (!granted) {
@@ -212,26 +224,50 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
 
   const playUnlockSignal = () => {
     startCamera();
-    const unlockSound = new Sound('unlock_signal.wav', Sound.MAIN_BUNDLE, (error) => {
-      if (error) {
-        console.log('Failed to load sound', error);
-        setSignalSent(false);
-        startUnlockTimer();
-        return;
-      }
-      unlockSound.play((success) => {
-        if (success) {
-          console.log('Unlock signal played successfully');
-          setSignalSent(true);
-          startUnlockTimer();
-        } else {
-          console.log('Unlock signal playback failed');
-          setSignalSent(false);
-          startUnlockTimer();
-        }
-        unlockSound.release();
+    if (NativeModules.AuxModule && NativeModules.AuxModule.playUnlockSignal) {
+      NativeModules.AuxModule.playUnlockSignal();
+      setSignalSent(true);
+    } else {
+      console.log('AuxModule не подключён');
+      setSignalSent(false);
+    }
+    
+  };
+
+
+  const successSoundRef = useRef<Sound | null>(null);
+  const playSuccessSound = () => {
+    if (successSoundRef.current) {
+      successSoundRef.current.stop(() => {
+        successSoundRef.current?.release();
+        successSoundRef.current = null;
       });
+    }
+    const successSound = new Sound('apple_pay_success.mp3', Sound.MAIN_BUNDLE, (error) => {
+      if (!error) {
+        successSound.play(() => {
+          successSound.release();
+          successSoundRef.current = null;
+        });
+        successSoundRef.current = successSound;
+      }
     });
+  };
+
+  const startBackgroundMusic = () => {
+
+  };
+
+  const stopBackgroundMusic = () => {
+    if (backgroundMusicRef.current) {
+      backgroundMusicRef.current.stop();
+      backgroundMusicRef.current.release();
+      backgroundMusicRef.current = null;
+    }
+    if (musicIntervalRef.current) {
+      clearInterval(musicIntervalRef.current as any);
+      musicIntervalRef.current = null;
+    }
   };
 
   const startUnlockTimer = () => {
@@ -240,7 +276,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
       setUnlockTimer(prev => {
         if (prev <= 1) {
           clearUnlockTimer();
-          goToHome();
+          goToHome(); 
           return 0;
         }
         return prev - 1;
@@ -257,6 +293,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
 
   const goToHome = async () => {
     clearUnlockTimer();
+    stopBackgroundMusic();
     stopCamera();
     await cartService.clearCart();
     navigation.reset({
@@ -273,7 +310,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   };
 
   const handleCancel = async () => {
-    // Остановить опрос и таймер
+
     if (timerRef.current) {
       clearInterval(timerRef.current as any);
       timerRef.current = null;
@@ -282,13 +319,13 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
       clearInterval(pollRef.current as any);
       pollRef.current = null;
     }
-    // Обновить статус заказа
+
     const resp = await updateOrder(internalOrderId, { status: 'cancelled' });
     console.log('updateOrder(cancelled) response:', JSON.stringify(resp));
     if (!resp || resp.error) {
       console.error('updateOrder error:', resp && resp.error ? resp.error : resp);
     }
-    // Очистить корзину и вернуться на главную
+    
     await cartService.clearCart();
     navigation.reset({
       index: 0,
@@ -341,6 +378,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
           frontCamera={frontCamera}
           hasPermission={hasPermission || false}
           isCameraActive={isCameraActive}
+          showUnlockInstruction={showUnlockInstruction}
         />
       )}
     </SafeAreaView>

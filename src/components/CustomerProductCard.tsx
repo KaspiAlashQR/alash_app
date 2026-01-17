@@ -12,6 +12,7 @@ const { width } = Dimensions.get('window');
 const isTablet = width > 600;
 
 const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product, readOnly = false }) => {
+  console.log('CustomerProductCard: Rendering product:', product.product_name || product.name, 'remaining:', product.remaining_quantity, 'readOnly:', readOnly);
   const [quantity, setQuantity] = useState(0);
 
   useEffect(() => {

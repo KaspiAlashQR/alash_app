@@ -1,7 +1,6 @@
 import { API_CONFIG } from './config';
 import { GoOrderCreate, GoOrderResponse, GoOrderUpdateFields } from './types';
 
-
 export async function createInternalOrder(order: GoOrderCreate): Promise<GoOrderResponse> {
   try {
     const response = await fetch(

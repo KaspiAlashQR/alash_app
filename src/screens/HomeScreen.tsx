@@ -31,17 +31,54 @@ const isTablet = width > 600;
 
 
 // Категории только из товаров в наличии
-// import { Product } from '../api/types';
 type CategoryType = string;
 function getCategoriesFromProducts(products: Product[]): CategoryType[] {
   const set = new Set<string>();
   products.forEach((p: Product) => {
-    // Добавляем категорию только если товар есть в наличии (remaining_quantity > 0)
     if (p.category && typeof p.category === 'string' && p.category.trim() !== '' && (p.remaining_quantity || 0) > 0) {
       set.add(p.category.trim());
     }
   });
   return Array.from(set).sort((a, b) => a.localeCompare(b, 'ru'));
+}
+
+function groupProductsByPriority(products: Product[]): Product[] {
+  console.log('HomeScreen: Grouping products by priority, input count:', products.length);
+
+  const productMap = new Map<number, Product[]>();
+
+  products.forEach(product => {
+    console.log('HomeScreen: Processing product:', product.product_id, product.product_name, 'remaining:', product.remaining_quantity);
+    if (!productMap.has(product.product_id)) {
+      productMap.set(product.product_id, []);
+    }
+    productMap.get(product.product_id)!.push(product);
+  });
+
+  console.log('HomeScreen: Unique product IDs found:', productMap.size);
+
+  const groupedProducts: Product[] = [];
+  productMap.forEach(productVariants => {
+    productVariants.sort((a, b) => a.priority - b.priority);
+
+    const bestVariant = productVariants[0];
+    console.log('HomeScreen: Selected best variant for', bestVariant.product_name, 'priority:', bestVariant.priority, 'remaining:', bestVariant.remaining_quantity);
+
+    const displayProduct: Product = {
+      ...bestVariant,
+      name: bestVariant.product_name,
+      name_ru: bestVariant.product_name,
+      name_kz: '',
+      amount: bestVariant.selling_price,
+      url: bestVariant.image_url,
+      invoice_product_id: bestVariant.batch_product_id,
+    };
+
+    groupedProducts.push(displayProduct);
+  });
+
+  console.log('HomeScreen: Grouped products count:', groupedProducts.length);
+  return groupedProducts;
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
@@ -54,8 +91,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     checkDeviceSetup();
-    
-    // Подписываемся на изменения корзины
+
     const unsubscribe = cartService.subscribe((cart) => {
       setCartItemCount(cartService.getTotalItems());
     });
@@ -66,7 +102,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   useEffect(() => {
     if (!isSetupComplete || !deviceInfo) return;
 
-    // Автообновление товаров каждые 30 секунд
     const refreshInterval = setInterval(() => {
       loadProducts(deviceInfo.device_id);
     }, 30000);
@@ -84,6 +119,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         const storedDeviceInfo = await deviceStorage.getDeviceInfo();
         
         if (storedDeviceInfo) {
+          console.log('HomeScreen: Device setup complete, deviceId:', storedDeviceInfo.device_id);
           setDeviceInfo(storedDeviceInfo);
           setIsSetupComplete(true);
           await loadProducts(storedDeviceInfo.device_id);
@@ -104,21 +140,26 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const loadProducts = async (deviceId: number) => {
     try {
+      console.log('HomeScreen: Loading products for deviceId:', deviceId);
       const response = await alashCloudAPI.getDevicePrices(deviceId);
-      
+
       if (isApiError(response)) {
-        console.error('Ошибка API:', response.error);
+        console.error('HomeScreen: API error:', response.error);
         Alert.alert('Ошибка', 'Не удалось загрузить товары');
         return;
       }
 
       if (isProductsResponse(response)) {
+        console.log('HomeScreen: Received products count:', response.rows?.length || 0);
+        if (response.rows && response.rows.length > 0) {
+          console.log('HomeScreen: First product sample:', JSON.stringify(response.rows[0], null, 2));
+        }
         setProducts(response.rows || []);
       } else {
-        console.error('Неожиданный формат ответа:', response);
+        console.error('HomeScreen: Unexpected response format:', response);
       }
     } catch (error) {
-      console.error('Ошибка загрузки товаров:', error);
+      console.error('HomeScreen: Error loading products:', error);
       Alert.alert('Ошибка', 'Не удалось загрузить товары');
     }
   };
@@ -135,7 +176,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     navigation.navigate('Cart');
   };
 
-  // Показываем загрузку
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -149,7 +189,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     );
   }
 
-  // Если настройка не завершена - показываем экран для перехода к настройке
   if (!isSetupComplete) {
     return (
       <SafeAreaView style={styles.container}>
@@ -173,12 +212,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   }
 
 
-  // Категории только из товаров
-  const categories = getCategoriesFromProducts(products);
-  // Фильтрация: показываем только товары с remaining_quantity > 0 (реальный остаток для продажи)
+  const groupedProducts = groupProductsByPriority(products);
+
+  const categories = getCategoriesFromProducts(groupedProducts);
+  console.log('HomeScreen: Categories found:', categories);
+
   const filteredProducts = (selectedCategoryId
-    ? products.filter((p) => p.category === selectedCategoryId)
-    : products).filter((p) => (p.remaining_quantity || 0) > 0);
+    ? groupedProducts.filter((p) => p.category === selectedCategoryId)
+    : groupedProducts).filter((p) => (p.remaining_quantity || 0) > 0);
+
+  console.log('HomeScreen: Filtered products count:', filteredProducts.length, 'selected category:', selectedCategoryId || 'all');
+  console.log('HomeScreen: Products with remaining_quantity > 0:', filteredProducts.filter(p => (p.remaining_quantity || 0) > 0).length);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#f8fafc', flexDirection: 'row' }] }>
@@ -196,14 +240,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             onAdminAccess={handleAdminAccess}
           />
         )}
-
-
-
-
-
-
-
-
 
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           <View style={styles.contentSection}>

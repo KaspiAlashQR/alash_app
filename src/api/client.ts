@@ -25,7 +25,6 @@ class AlashCloudAPI {
         console.error('Ошибка парсинга JSON из API:', text);
         throw new Error('Ошибка парсинга JSON из API');
       }
-      // Логируем все полученные данные
       console.log('API response:', {
         url,
         method,
@@ -66,20 +65,34 @@ class AlashCloudAPI {
   }
 
   async getDevicePrices(deviceId: number): Promise<ApiResponse<ProductsResponse>> {
-    const endpoint = `${API_CONFIG.ENDPOINTS.GET_DEVICE_PRODUCTS}/${deviceId}/products/${API_CONFIG.SESSION_ID}`;
-    const response = await this.makeRequest<any>(endpoint, { method: 'GET' });
-    
-    // Если rows — строка, парсим её как JSON
-    if (response && typeof response.rows === 'string') {
+    const endpoint = API_CONFIG.ENDPOINTS.GET_DEVICE_PRODUCTS
+      .replace('{device_id}', deviceId.toString())
+      .replace('{sessionid}', API_CONFIG.SESSION_ID);
+    const url = `${this.baseURL}${endpoint}`;
+    const headers = {
+      'Authorization': `Bearer ${this.token}`,
+      'Content-Type': 'application/json',
+    };
+    try {
+      const response = await fetch(url, { method: 'GET', headers });
+      const text = await response.text();
+      let data;
       try {
-        response.rows = JSON.parse(response.rows);
+        data = JSON.parse(text);
       } catch (e) {
-        console.error('Ошибка парсинга rows:', response.rows);
-        return { error: 'Ошибка парсинга списка товаров' };
+        return { error: 'Ошибка парсинга JSON' };
       }
+      if (data && typeof data.rows === 'string') {
+        try {
+          data.rows = JSON.parse(data.rows);
+        } catch (e) {
+          return { error: 'Ошибка парсинга списка товаров' };
+        }
+      }
+      return data as ProductsResponse;
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) };
     }
-    
-    return response as ProductsResponse;
   }
 
   async validateDevice(machid: string): Promise<{ isValid: boolean; deviceInfo?: DeviceInfo; error?: string }> {
@@ -270,7 +283,6 @@ class AlashCloudAPI {
     const endpoint = `${API_CONFIG.ENDPOINTS.GET_AVAILABLE_PRODUCTS}/${deviceId}/available-products/${API_CONFIG.SESSION_ID}`;
     const response = await this.makeRequest<any>(endpoint, { method: 'GET' });
     
-    // Если rows — строка, парсим её как JSON
     if (response && typeof response.rows === 'string') {
       try {
         response.rows = JSON.parse(response.rows);
@@ -284,7 +296,6 @@ class AlashCloudAPI {
   }
 
   async getOrders(machid: number | string): Promise<ApiResponse<OrdersResponse>> {
-    // Преобразуем machid в число для URL
     const machidNum = typeof machid === 'string' ? parseInt(machid, 10) : machid;
     const endpoint = `${API_CONFIG.ENDPOINTS.GET_ORDERS}/${machidNum}?sessionid=${API_CONFIG.SESSION_ID}`;
     const response = await this.makeRequest<OrdersResponse>(endpoint, { method: 'GET' });

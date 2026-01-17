@@ -82,7 +82,6 @@ class CartService {
       if (newQuantity <= remainingQty) {
         this.cart.items[existingItemIndex].quantity = newQuantity;
       } else {
-        // Ограничиваем количеством остатка
         this.cart.items[existingItemIndex].quantity = remainingQty;
       }
     } else {
@@ -108,8 +107,7 @@ class CartService {
     if (itemIndex >= 0) {
       const product = this.cart.items[itemIndex].product;
       const remainingQty = product.remaining_quantity || 0;
-      
-      // Ограничиваем количеством остатка
+
       const finalQuantity = Math.min(quantity, remainingQty);
       this.cart.items[itemIndex].quantity = finalQuantity;
       

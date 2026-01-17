@@ -9,22 +9,27 @@ export interface DeviceInfo {
 export interface Product {
   id: number;
   device_id: number;
-  invoice_product_id: number;
+  batch_product_id: number;
   quantity: number;
   remaining_quantity: number;
-  name_ru: string;
-  name_kz: string;
+  product_id: number;
+  product_name: string;
   category: string;
+  image_url: string;
   selling_price: number;
   purchase_price: number;
-  image_url: string;
+  batch_id: number;
+  batch_number: string;
   created_at: string;
   updated_at: string;
-  // Обратная совместимость (геттеры для старого кода)
+  priority: number;
   name?: string;
   amount?: number;
   name2?: string;
   url?: string;
+  name_ru?: string;
+  name_kz?: string;
+  invoice_product_id?: number;
 }
 
 export interface CartItem {
@@ -87,9 +92,7 @@ export interface ApiError {
   OK?: boolean;
 }
 
-
 export type ApiResponse<T> = T | ApiError;
-
 
 export interface StoredDeviceData {
   deviceInfo: DeviceInfo;
@@ -98,17 +101,15 @@ export interface StoredDeviceData {
   lastSync: string;
 }
 
-
 export function isApiError(response: any): response is ApiError {
   return response && typeof response === 'object' && ('error' in response || response.OK === false);
 }
 
-
 export function isDeviceInfo(response: any): response is DeviceInfo {
-  return response && typeof response === 'object' && 
-    'device_id' in response && 
-    'device_name' in response && 
-    'machid' in response && 
+  return response && typeof response === 'object' &&
+    'device_id' in response &&
+    'device_name' in response &&
+    'machid' in response &&
     'bin' in response;
 }
 
@@ -119,8 +120,8 @@ export function isProductsResponse(response: any): response is ProductsResponse 
 export interface GoOrderCreate {
   amount: number;
   device_id: number;
-  product_name: any; // JSON-объект: массив или объект с товарами
-  url?: string; // всегда ''
+  product_name: any;
+  url?: string;
 }
 
 export interface GoOrderResponse {
@@ -131,11 +132,11 @@ export interface GoOrderResponse {
 
 export interface GoOrderUpdateFields {
   status?: 'pending' | 'paid' | 'cancelled';
-  product_name?: any; // если потребуется обновлять
+  product_name?: any;
 }
 
 export interface AssignProductItem {
-  invoice_product_id: number;
+  batch_product_id: number;
   quantity: number;
 }
 
@@ -149,18 +150,18 @@ export interface AssignProductsResponse {
 }
 
 export interface AvailableProduct {
-  id: number; // invoice_product_id
+  id: number;
   invoice_id: number;
   invoice_name: string;
   name_ru: string;
   name_kz: string;
   category: string;
-  available_quantity: number; // остаток на складе
+  available_quantity: number;
   selling_price: number;
   purchase_price: number;
   image_url: string;
-  assigned_quantity: number; // сколько уже назначено на это устройство
-  remaining_quantity: number; // сколько осталось на этом устройстве после продаж
+  assigned_quantity: number;
+  remaining_quantity: number;
 }
 
 export interface AvailableProductsResponse {

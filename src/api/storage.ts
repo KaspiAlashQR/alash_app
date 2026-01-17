@@ -1,7 +1,6 @@
 import { DeviceInfo, StoredDeviceData } from '../api/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-
 const STORAGE_KEYS = {
   DEVICE_DATA: 'device_data',
   FIRST_LAUNCH: 'first_launch',

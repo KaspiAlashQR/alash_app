@@ -1,96 +1,64 @@
 import { API_CONFIG } from './config';
 
-export interface ReduceStockRequest {
-  invoice_product_id: number;
-  quantity: number;
-}
 
-export interface ReduceStockResponse {
-  OK: boolean;
-  remaining_quantity?: number;
-  error?: string;
-}
-
-/**
- * Уменьшает остаток товара на устройстве при оплате заказа
- * @param deviceId - ID устройства
- * @param invoiceProductId - ID товара из накладной
- * @param quantity - количество проданного товара
- */
-export async function reduceStock(
+export async function reduceStockFIFO(
   deviceId: number,
-  invoiceProductId: number,
-  quantity: number
-): Promise<ReduceStockResponse> {
+  items: Array<{ product_id: number; quantity: number }>
+): Promise<Array<{ success: boolean; product_id: number; error?: string }>> {
+  const results: Array<{ success: boolean; product_id: number; error?: string }> = [];
   try {
-    const endpoint = `${API_CONFIG.ENDPOINTS.REDUCE_STOCK}/${deviceId}/reduce-stock/${API_CONFIG.SESSION_ID}`;
-    const url = `${API_CONFIG.BASE_URL}${endpoint}`;
-    
-    const requestBody = {
-      invoice_product_id: invoiceProductId,
-      quantity: quantity,
-    };
-    const body = JSON.stringify(requestBody);
 
-    const response = await fetch(url, {
-      method: 'POST',
+    const productsUrl = `${API_CONFIG.BASE_URL}/go/devices/${deviceId}/products/${API_CONFIG.SESSION_ID}`;
+    const productsResp = await fetch(productsUrl, {
+      method: 'GET',
       headers: {
         'Authorization': `Bearer ${API_CONFIG.TOKEN}`,
         'Content-Type': 'application/json',
       },
-      body: body,
     });
-
-    const responseText = await response.text();
-
-    let responseData;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('Ошибка парсинга ответа:', parseError);
-      return {
-        OK: false,
-        error: 'Ошибка парсинга ответа сервера',
-      };
+    const productsData = await productsResp.json();
+    if (!productsResp.ok || !productsData.rows) {
+      return items.map(item => ({ success: false, product_id: item.product_id, error: 'Ошибка получения партий товара' }));
     }
 
-    if (!response.ok) {
-      return {
-        OK: false,
-        error: responseData.error || `HTTP ${response.status}: ${response.statusText}`,
-      };
-    }
+    for (const item of items) {
+      let remainingToReduce = item.quantity;
 
-    return responseData;
+      const batches = productsData.rows
+        .filter((row: any) => row.product_id === item.product_id && row.remaining_quantity > 0)
+        .sort((a: any, b: any) => a.priority - b.priority);
+
+      for (const batch of batches) {
+        if (remainingToReduce <= 0) break;
+        const reduceQty = Math.min(batch.remaining_quantity, remainingToReduce);
+
+        const endpoint = `${API_CONFIG.BASE_URL}/go/devices/${deviceId}/reduce-stock/${API_CONFIG.SESSION_ID}`;
+        const body = JSON.stringify({ product_id: item.product_id, quantity: reduceQty });
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${API_CONFIG.TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body,
+        });
+        const respData = await resp.json();
+        if (!resp.ok || !respData.OK) {
+          results.push({ success: false, product_id: item.product_id, error: respData.error || 'Ошибка списания товара' });
+          remainingToReduce = 0;
+          break;
+        }
+        remainingToReduce -= reduceQty;
+      }
+      if (remainingToReduce > 0) {
+        results.push({ success: false, product_id: item.product_id, error: `Недостаточно товара. Не хватает: ${remainingToReduce}` });
+      } else {
+        results.push({ success: true, product_id: item.product_id });
+      }
+    }
+    return results;
   } catch (error) {
-    console.error('Ошибка уменьшения остатка:', error);
-    return {
-      OK: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
+    return items.map(item => ({ success: false, product_id: item.product_id, error: error instanceof Error ? error.message : String(error) }));
   }
-}
-
-/**
- * Уменьшает остаток для нескольких товаров
- * @param deviceId - ID устройства
- * @param items - массив товаров с invoice_product_id и quantity
- */
-export async function reduceStockMultiple(
-  deviceId: number,
-  items: Array<{ invoice_product_id: number; quantity: number }>
-): Promise<Array<{ success: boolean; invoice_product_id: number; error?: string }>> {
-  const results = await Promise.all(
-    items.map(async (item) => {
-      const result = await reduceStock(deviceId, item.invoice_product_id, item.quantity);
-      return {
-        success: result.OK,
-        invoice_product_id: item.invoice_product_id,
-        error: result.error,
-      };
-    })
-  );
-  
-  return results;
 }
 

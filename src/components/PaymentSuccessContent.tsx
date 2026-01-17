@@ -10,10 +10,12 @@ interface PaymentSuccessContentProps {
   frontCamera: CameraDevice | undefined;
   hasPermission: boolean;
   isCameraActive: boolean;
+  showUnlockInstruction?: boolean;
 }
 
 const { width } = Dimensions.get('window');
 const isTablet = width > 600;
+const UNLOCK_TIMER_SECONDS = 15; // Предполагаем, что таймер разблокировки 15 секунд
 
 const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
   unlockTimer,
@@ -22,6 +24,7 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
   frontCamera,
   hasPermission,
   isCameraActive,
+  showUnlockInstruction,
 }) => {
   const [isBlinking, setIsBlinking] = useState(true);
 
@@ -111,20 +114,24 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
           Спасибо за покупку!
         </Text>
 
-        <View style={styles.timerBlock}>
-          <Text style={[styles.timerText, isTablet && styles.timerTextTablet]}>
-            {formatTimer(unlockTimer)}
-          </Text>
-        </View>
-
-        <Text
-          style={[
-            styles.doorOpenText,
-            { opacity: isBlinking ? 1 : 0.3 },
-          ]}
-        >
-          🔴 Дверь открыта, возьмите товары
-        </Text>
+        {showUnlockInstruction ? (
+          <Text style={[styles.doorOpenText, { opacity: 1 }]}>Дождитесь зелёного света, чтобы открыть дверь.</Text>
+        ) : (
+          <>
+            <View style={styles.timerBlock}>
+              <Text style={[styles.timerText, isTablet && styles.timerTextTablet]}>
+                {formatTimer(unlockTimer)}
+              </Text>
+            </View>
+            {unlockTimer > 0 ? (
+              <Text
+                style={[styles.doorOpenText, { opacity: isBlinking ? 1 : 0.3 }]}
+              >
+                🔴 Дверь открыта, возьмите товары
+              </Text>
+            ) : null}
+          </>
+        )}
       </View>
     </View>
   );

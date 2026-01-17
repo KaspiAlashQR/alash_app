@@ -1,11 +1,13 @@
 export const API_CONFIG = {
   BASE_URL: 'https://alashcloud.kz',
   TOKEN: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcGlfYWNjZXNzIiwiaWF0IjoxNzAwMDAwMDAwfQ.a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2',
-  SESSION_ID: '00000000-0000-0000-0000-000000000000', 
+  SESSION_ID: '00000000-0000-0000-0000-000000000000',
   ENDPOINTS: {
     DEVICE_INFO: '/go/devinfo',
-    GET_PRICES: '/go/prices',
-    GET_DEVICE_PRODUCTS: '/go/devices', // /{device_id}/products/{sessionid}
+    GET_DEVICE_PRODUCTS: '/go/devices/{device_id}/products/{sessionid}',
+    ASSIGN_PRODUCTS: '/go/devices/{device_id}/assign-products/{sessionid}',
+    GET_AVAILABLE_PRODUCTS: '/go/devices/{device_id}/available-products/{sessionid}',
+    REDUCE_STOCK: '/go/devices/{device_id}/reduce-stock/{sessionid}',
     ADD_PRICE: '/go/prices',
     EDIT_PRICE: '/go/prices/edit',
     DELETE_PRICE: '/go/prices/delete',
@@ -14,9 +16,6 @@ export const API_CONFIG = {
     NEW_ORDER: '/neword',
     CHECK_ORDER: '/checkord',
     GO_ORDERS: '/go/orders',
-    ASSIGN_PRODUCTS: '/go/devices', // /{device_id}/assign-products/{sessionid}
-    GET_AVAILABLE_PRODUCTS: '/go/devices', // /{device_id}/available-products/{sessionid}
-    REDUCE_STOCK: '/go/devices', // /{device_id}/reduce-stock/{sessionid}
-    GET_ORDERS: '/go/orders', // /{machid}
+    GET_ORDERS: '/go/orders',
   },
 };
