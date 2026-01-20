@@ -145,7 +145,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
       if (isApiError(response)) {
         console.error('HomeScreen: API error:', response.error);
-        Alert.alert('Ошибка', 'Не удалось загрузить товары');
+        // Alert.alert('Ошибка', 'Не удалось загрузить товары');
         return;
       }
 
@@ -160,7 +160,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       }
     } catch (error) {
       console.error('HomeScreen: Error loading products:', error);
-      Alert.alert('Ошибка', 'Не удалось загрузить товары');
+      // Alert.alert('Ошибка', 'Не удалось загрузить товары');
     }
   };
 

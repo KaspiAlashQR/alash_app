@@ -4,6 +4,7 @@ export interface DeviceInfo {
   machid: string;
   bin: string;
   user_id: number;
+  pwd: string;
 }
 
 export interface Product {
@@ -150,18 +151,19 @@ export interface AssignProductsResponse {
 }
 
 export interface AvailableProduct {
-  id: number;
-  invoice_id: number;
-  invoice_name: string;
-  name_ru: string;
-  name_kz: string;
+  batch_product_id: number;
+  batch_id: number;
+  batch_number: string;
+  product_id: number;
+  product_name: string;
   category: string;
+  image_url: string;
   available_quantity: number;
   selling_price: number;
   purchase_price: number;
-  image_url: string;
   assigned_quantity: number;
   remaining_quantity: number;
+  batch_created_at: string;
 }
 
 export interface AvailableProductsResponse {
@@ -187,4 +189,103 @@ export interface Order {
 export interface OrdersResponse {
   orders: Order[];
   error?: string;
+}
+
+export interface AddProductToBatchResponse {
+  OK: boolean;
+  id?: number;
+  error?: string;
+}
+
+export interface Batch {
+  id: number;
+  user_id: number;
+  batch_number: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+  products_count: number;
+  total_quantity: number;
+  profit: number;
+}
+
+export interface GetBatchesListRequest {
+  search: string;
+  offset: number;
+  limit: number;
+  order: null;
+}
+
+export interface BatchesListResponse {
+  total: number;
+  rows: Batch[];
+}
+
+export interface BatchProduct {
+  id: number;
+  user_id: number;
+  name: string;
+  category: string;
+  image_url: string;
+  created_at: string;
+  updated_at: string;
+  used_in_batches: number;
+}
+
+export interface BatchProductsListResponse {
+  total: number;
+  rows: BatchProduct[];
+}
+
+export interface GetProductsListRequest {
+  search: string;
+  offset: number;
+  limit: number;
+  order: null;
+}
+
+export interface CreateBatchRequest {
+  batch_number: string;
+  description: string;
+}
+
+export interface CreateBatchResponse {
+  OK: boolean;
+  id?: number;
+  error?: string;
+}
+
+export interface AddProductToBatchRequest {
+  batch_id: number;
+  product_id: number;
+  quantity: number;
+  purchase_price: number;
+  selling_price: number;
+}
+
+export interface AddProductToBatchResponse {
+  OK: boolean;
+  id?: number;
+  error?: string;
+}
+
+export interface BatchProductDetail {
+  id: number;
+  batch_id: number;
+  product_id: number;
+  quantity: number;
+  purchase_price: number;
+  selling_price: number;
+  product_name: string;
+  category: string;
+  image_url: string;
+  created_at: string;
+  updated_at: string;
+  distributed_quantity: number;
+  remaining_quantity: number;
+  profit: number;
+}
+
+export interface BatchProductsDetailResponse {
+  rows: BatchProductDetail[];
 }

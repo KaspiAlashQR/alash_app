@@ -1,16 +1,28 @@
 import { API_CONFIG } from './config';
 import { DeviceInfo, ApiResponse, isApiError, isDeviceInfo, Product, ProductsResponse, isProductsResponse, AddProductRequest, AddProductResponse, EditProductRequest, UploadImageResponse, CategoriesResponse, AssignProductItem, AssignProductsResponse, AvailableProductsResponse, OrdersResponse } from './types';
+import { getDeviceToken } from './storage';
 
 class AlashCloudAPI {
   private baseURL = API_CONFIG.BASE_URL;
-  private token = API_CONFIG.TOKEN;
 
-  private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+  private async makeRequest<T>(endpoint: string, options: RequestInit = {}, useFixedToken: boolean = false): Promise<ApiResponse<T>> {
     const startTime = Date.now();
     const url = `${this.baseURL}${endpoint}`;
     const method = options.method || 'GET';
+
+    let token: string;
+    if (useFixedToken) {
+      token = API_CONFIG.TOKEN;
+    } else {
+      const deviceToken = await getDeviceToken();
+      if (!deviceToken) {
+        return { error: 'Токен устройства не найден. Пожалуйста, пройдите авторизацию заново.' } as ApiResponse<T>;
+      }
+      token = deviceToken;
+    }
+
     const headers = {
-      'Authorization': `Bearer ${this.token}`,
+      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
       ...options.headers,
     };
@@ -61,7 +73,8 @@ class AlashCloudAPI {
 
   async getDeviceInfo(machid: string): Promise<ApiResponse<DeviceInfo>> {
     const endpoint = `${API_CONFIG.ENDPOINTS.DEVICE_INFO}/${machid}`;
-    return this.makeRequest<DeviceInfo>(endpoint, { method: 'GET' });
+    // Для DEVICE_INFO используем фиксированный токен API_CONFIG.TOKEN
+    return this.makeRequest<DeviceInfo>(endpoint, { method: 'GET' }, true);
   }
 
   async getDevicePrices(deviceId: number): Promise<ApiResponse<ProductsResponse>> {
@@ -69,8 +82,14 @@ class AlashCloudAPI {
       .replace('{device_id}', deviceId.toString())
       .replace('{sessionid}', API_CONFIG.SESSION_ID);
     const url = `${this.baseURL}${endpoint}`;
+
+    const token = await getDeviceToken();
+    if (!token) {
+      return { error: 'Токен устройства не найден. Пожалуйста, пройдите авторизацию заново.' };
+    }
+
     const headers = {
-      'Authorization': `Bearer ${this.token}`,
+      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     };
     try {
@@ -114,25 +133,21 @@ class AlashCloudAPI {
     const endpoint = `${API_CONFIG.ENDPOINTS.ADD_PRICE}/${API_CONFIG.SESSION_ID}`;
     const url = `${this.baseURL}${endpoint}`;
     const body = JSON.stringify(productData);
-    
+
     console.log('=== ADD PRODUCT REQUEST ===');
     console.log('URL:', url);
-    console.log('Headers:', {
-      'Authorization': `Bearer ${this.token}`,
-      'Content-Type': 'application/json',
-    });
     console.log('Body:', body);
     console.log('Body (parsed):', productData);
-    
+
     const response = await this.makeRequest<AddProductResponse>(endpoint, {
       method: 'POST',
       body: body,
     });
-    
+
     console.log('=== ADD PRODUCT RESPONSE ===');
     console.log('Response:', response);
     console.log('===========================');
-    
+
     return response;
   }
 
@@ -140,68 +155,65 @@ class AlashCloudAPI {
     const endpoint = `${API_CONFIG.ENDPOINTS.EDIT_PRICE}/${API_CONFIG.SESSION_ID}`;
     const url = `${this.baseURL}${endpoint}`;
     const body = JSON.stringify(productData);
-    
+
     console.log('=== EDIT PRODUCT REQUEST ===');
     console.log('URL:', url);
-    console.log('Headers:', {
-      'Authorization': `Bearer ${this.token}`,
-      'Content-Type': 'application/json',
-    });
     console.log('Body:', body);
     console.log('Body (parsed):', productData);
-    
+
     const response = await this.makeRequest<AddProductResponse>(endpoint, {
       method: 'POST',
       body: body,
     });
-    
+
     console.log('=== EDIT PRODUCT RESPONSE ===');
     console.log('Response:', response);
     console.log('============================');
-    
+
     return response;
   }
 
   async deleteProduct(deviceId: number, priceId: number): Promise<ApiResponse<{ OK: boolean }>> {
     const endpoint = `${API_CONFIG.ENDPOINTS.DELETE_PRICE}/${deviceId}/${priceId}/${API_CONFIG.SESSION_ID}`;
     const url = `${this.baseURL}${endpoint}`;
-    
+
     console.log('=== DELETE PRODUCT REQUEST ===');
     console.log('URL:', url);
-    console.log('Headers:', {
-      'Authorization': `Bearer ${this.token}`,
-      'Content-Type': 'application/json',
-    });
     console.log('Params:', { device_id: deviceId, priceId, sessionId: API_CONFIG.SESSION_ID });
-    
+
     const response = await this.makeRequest<{ OK: boolean }>(endpoint, { method: 'POST' });
-    
+
     console.log('=== DELETE PRODUCT RESPONSE ===');
     console.log('Response:', response);
     console.log('===============================');
-    
+
     return response;
   }
 
   async uploadImage(file: File | Blob): Promise<ApiResponse<UploadImageResponse>> {
     try {
+      const token = await getDeviceToken();
+      if (!token) {
+        return { error: 'Токен устройства не найден. Пожалуйста, пройдите авторизацию заново.' };
+      }
+
       const formData = new FormData();
       formData.append('file', file);
 
       const endpoint = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.UPLOAD_IMAGE}/${API_CONFIG.SESSION_ID}`;
-      
+
       console.log('=== UPLOAD IMAGE REQUEST ===');
       console.log('URL:', endpoint);
       console.log('Headers:', {
-        'Authorization': `Bearer ${API_CONFIG.TOKEN}`,
+        'Authorization': `Bearer ${token}`,
       });
       console.log('File size:', file.size, 'bytes');
       console.log('File type:', file.type);
-      
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${API_CONFIG.TOKEN}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: formData,
       });
@@ -219,7 +231,7 @@ class AlashCloudAPI {
       const responseData = await response.json();
       console.log('Success response:', responseData);
       console.log('============================');
-      
+
       return responseData;
     } catch (error) {
       console.log('=== UPLOAD IMAGE ERROR ===');
@@ -232,22 +244,18 @@ class AlashCloudAPI {
   async getCategories(): Promise<ApiResponse<CategoriesResponse>> {
     const endpoint = API_CONFIG.ENDPOINTS.GET_CATEGORIES;
     const url = `${this.baseURL}${endpoint}`;
-    
+
     console.log('=== GET CATEGORIES REQUEST ===');
     console.log('URL:', url);
-    console.log('Headers:', {
-      'Authorization': `Bearer ${this.token}`,
-      'Content-Type': 'application/json',
-    });
-    
+
     const response = await this.makeRequest<CategoriesResponse>(endpoint, {
       method: 'GET',
     });
-    
+
     console.log('=== GET CATEGORIES RESPONSE ===');
     console.log('Response:', response);
     console.log('===============================');
-    
+
     return response;
   }
 
@@ -267,7 +275,9 @@ class AlashCloudAPI {
   }
 
   async assignProducts(deviceId: number, products: AssignProductItem[]): Promise<ApiResponse<AssignProductsResponse>> {
-    const endpoint = `${API_CONFIG.ENDPOINTS.ASSIGN_PRODUCTS}/${deviceId}/assign-products/${API_CONFIG.SESSION_ID}`;
+    const endpoint = API_CONFIG.ENDPOINTS.ASSIGN_PRODUCTS
+      .replace('{device_id}', deviceId.toString())
+      .replace('{sessionid}', API_CONFIG.SESSION_ID);
     const requestBody = { products };
     const body = JSON.stringify(requestBody);
     
@@ -280,7 +290,9 @@ class AlashCloudAPI {
   }
 
   async getAvailableProducts(deviceId: number): Promise<ApiResponse<AvailableProductsResponse>> {
-    const endpoint = `${API_CONFIG.ENDPOINTS.GET_AVAILABLE_PRODUCTS}/${deviceId}/available-products/${API_CONFIG.SESSION_ID}`;
+    const endpoint = API_CONFIG.ENDPOINTS.GET_AVAILABLE_PRODUCTS
+      .replace('{device_id}', deviceId.toString())
+      .replace('{sessionid}', API_CONFIG.SESSION_ID);
     const response = await this.makeRequest<any>(endpoint, { method: 'GET' });
     
     if (response && typeof response.rows === 'string') {

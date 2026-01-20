@@ -1,14 +1,20 @@
 import { API_CONFIG } from './config';
 import { GoOrderCreate, GoOrderResponse, GoOrderUpdateFields } from './types';
+import { getDeviceToken } from './storage';
 
 export async function createInternalOrder(order: GoOrderCreate): Promise<GoOrderResponse> {
   try {
+    const token = await getDeviceToken();
+    if (!token) {
+      return { OK: false, error: 'Токен устройства не найден. Пожалуйста, пройдите авторизацию заново.' };
+    }
+
     const response = await fetch(
       API_CONFIG.BASE_URL + API_CONFIG.ENDPOINTS.GO_ORDERS,
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${API_CONFIG.TOKEN}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -22,9 +28,9 @@ export async function createInternalOrder(order: GoOrderCreate): Promise<GoOrder
 
     if (!response.ok) {
       const errorText = await response.text();
-      return { 
-        OK: false, 
-        error: `HTTP ${response.status}: ${errorText || response.statusText}` 
+      return {
+        OK: false,
+        error: `HTTP ${response.status}: ${errorText || response.statusText}`
       };
     }
 
@@ -37,12 +43,17 @@ export async function createInternalOrder(order: GoOrderCreate): Promise<GoOrder
 
 export async function updateOrder(orderId: number, fields: GoOrderUpdateFields): Promise<GoOrderResponse> {
   try {
+    const token = await getDeviceToken();
+    if (!token) {
+      return { OK: false, error: 'Токен устройства не найден. Пожалуйста, пройдите авторизацию заново.' };
+    }
+
     const response = await fetch(
       `${API_CONFIG.BASE_URL + API_CONFIG.ENDPOINTS.GO_ORDERS}/${orderId}`,
       {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${API_CONFIG.TOKEN}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(fields),

@@ -1,5 +1,5 @@
 import { API_CONFIG } from './config';
-
+import { getDeviceToken } from './storage';
 
 export async function reduceStockFIFO(
   deviceId: number,
@@ -7,12 +7,16 @@ export async function reduceStockFIFO(
 ): Promise<Array<{ success: boolean; product_id: number; error?: string }>> {
   const results: Array<{ success: boolean; product_id: number; error?: string }> = [];
   try {
+    const token = await getDeviceToken();
+    if (!token) {
+      return items.map(item => ({ success: false, product_id: item.product_id, error: 'Токен устройства не найден. Пожалуйста, пройдите авторизацию заново.' }));
+    }
 
     const productsUrl = `${API_CONFIG.BASE_URL}/go/devices/${deviceId}/products/${API_CONFIG.SESSION_ID}`;
     const productsResp = await fetch(productsUrl, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${API_CONFIG.TOKEN}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
     });
@@ -37,7 +41,7 @@ export async function reduceStockFIFO(
         const resp = await fetch(endpoint, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${API_CONFIG.TOKEN}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
           body,

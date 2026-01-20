@@ -5,7 +5,7 @@ import { NativeStackNavigationProp, NativeStackScreenProps } from '@react-naviga
 import { launchImageLibrary, launchCamera, ImagePickerResponse, MediaType, Asset } from 'react-native-image-picker';
 import { RootStackParamList } from '../utils/navigation.types';
 import { alashCloudAPI } from '../api/client';
-import { deviceStorage } from '../api/storage';
+import { getDeviceToken, deviceStorage } from '../api/storage';
 import { isApiError, Category } from '../api/types';
 import { API_CONFIG } from '../api/config';
 
@@ -150,12 +150,18 @@ const AddProductScreen: React.FC<AddProductScreenProps> = ({ navigation, route }
   const uploadImageFile = async (fileUri: string): Promise<string | null> => {
     try {
       console.log('uploadImageFile called with:', fileUri);
-      
+
+      const token = await getDeviceToken();
+      if (!token) {
+        Alert.alert('Ошибка', 'Токен устройства не найден. Пожалуйста, пройдите авторизацию заново.');
+        return null;
+      }
+
       const formData = new FormData();
-      
+
       const fileName = fileUri.split('/').pop() || 'photo.jpg';
       const fileType = fileName.endsWith('.png') ? 'image/png' : 'image/jpeg';
-      
+
       formData.append('file', {
         uri: fileUri,
         type: fileType,
@@ -165,15 +171,15 @@ const AddProductScreen: React.FC<AddProductScreenProps> = ({ navigation, route }
       console.log('FormData prepared:', { uri: fileUri, type: fileType, name: fileName });
 
       const endpoint = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.UPLOAD_IMAGE}/${API_CONFIG.SESSION_ID}`;
-      
+
       console.log('=== DIRECT UPLOAD IMAGE REQUEST ===');
       console.log('URL:', endpoint);
       console.log('File:', { uri: fileUri, type: fileType, name: fileName });
-      
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${API_CONFIG.TOKEN}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
         },
         body: formData,

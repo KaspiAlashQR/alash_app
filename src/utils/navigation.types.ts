@@ -8,6 +8,7 @@ export type RootStackParamList = {
   InitialSetup: undefined;
   Cart: undefined;
   Payment: { orderId: number; payUrl: string; internalOrderId: number; cartItems: CartItem[] };
+  BatchDetails: { batchId: number; batchNumber: string };
 };
 
 declare global {

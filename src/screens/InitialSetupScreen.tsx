@@ -58,6 +58,8 @@ const InitialSetupScreen: React.FC<InitialSetupScreenProps> = ({ navigation }) =
         await deviceStorage.markFirstLaunchComplete();
         
         Alert.alert(
+          // 'Успешно',
+          // JSON.stringify(result.deviceInfo, null, 2)
           'Успешно!', 
           `Устройство "${result.deviceInfo.device_name}" настроено.\n\nВы будете перенаправлены в панель администратора для завершения настройки.`,
           [

@@ -21,6 +21,7 @@ import AddProductScreen from './screens/AddProductScreen';
 import InitialSetupScreen from './screens/InitialSetupScreen';
 import CartScreen from './screens/CartScreen';
 import PaymentScreen from './screens/PaymentScreen';
+import BatchDetailsScreen from './screens/BatchDetailsScreen';
 
 // Utils
 import { KioskModule } from './utils/KioskModule';
@@ -133,6 +134,14 @@ function App(): React.JSX.Element {
             options={{
               title: 'Оплата',
               gestureEnabled: false,
+            }}
+          />
+          <Stack.Screen
+            name="BatchDetails"
+            component={BatchDetailsScreen}
+            options={{
+              title: 'Детали партии',
+              gestureEnabled: true,
             }}
           />
         </Stack.Navigator>

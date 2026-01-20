@@ -17,5 +17,9 @@ export const API_CONFIG = {
     CHECK_ORDER: '/checkord',
     GO_ORDERS: '/go/orders',
     GET_ORDERS: '/go/orders',
+    GET_PRODUCTS_LIST: '/go/products/list',
+    GET_BATCHES_LIST: '/go/batches/list',
+    CREATE_BATCH: '/go/batches',
+    ADD_PRODUCT_TO_BATCH: '/go/batches',
   },
 };

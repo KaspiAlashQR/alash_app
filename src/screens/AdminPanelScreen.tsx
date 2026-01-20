@@ -1,73 +1,12 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Sound from 'react-native-sound';
+import DistributeTab from '../components/admin/DistributeTab';
+import InvoicesTab from '../components/admin/InvoicesTab';
 import { RootStackParamList } from '../utils/navigation.types';
-
-type AdminPanelScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'AdminPanel'>;
-
-interface AdminPanelScreenProps {
-  navigation: AdminPanelScreenNavigationProp;
-}
-
-const { width } = Dimensions.get('window');
-const isTablet = width > 600;
-
-const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
-  const handleLogout = async () => {
-    navigation.navigate('Home');
-  };
-
-  const playUnlockSignal = () => {
-    const unlockSound = new Sound('unlock_signal.wav', Sound.MAIN_BUNDLE, (error) => {
-      if (error) {
-        console.log('Failed to load sound', error);
-        return;
-      }
-      unlockSound.play((success) => {
-        if (success) {
-          console.log('Unlock signal played successfully');
-        } else {
-          console.log('Unlock signal playback failed');
-        }
-        unlockSound.release();
-      });
-    });
-  };
-
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: '#fff' }] }>
-      <View style={styles.navHeader}>
-        <Text style={[styles.logoText, isTablet && styles.logoTextTablet]}>
-          GoMarket Admin
-        </Text>
-
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            onPress={playUnlockSignal}
-            style={[styles.unlockButton, isTablet && styles.unlockButtonTablet]}
-          >
-            <Text style={[styles.unlockButtonText, isTablet && styles.unlockButtonTextTablet]}>
-              Открыть замок
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleLogout}
-            style={[styles.logoutButton, isTablet && styles.logoutButtonTablet]}
-          >
-            <Text style={[styles.logoutButtonText, isTablet && styles.logoutButtonTextTablet]}>
-              Выйти
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={styles.contentContainer} />
-    </SafeAreaView>
-  );
-};
 
 const styles = StyleSheet.create({
   container: {
@@ -97,11 +36,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   logoutButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#FF8A50',
     paddingHorizontal: 28,
     paddingVertical: 14,
     borderRadius: 16,
-    shadowColor: '#3b82f6',
+    shadowColor: '#FF8A50',
     shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 6,
@@ -149,6 +88,112 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
   },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#f3f4f6',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    paddingHorizontal: 8,
+    paddingVertical: 0,
+  },
+  tabButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabButtonActive: {
+    borderBottomColor: '#FF8A50',
+    backgroundColor: '#fff',
+  },
+  tabButtonText: {
+    fontSize: 16,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  tabButtonTextActive: {
+    color: '#FF8A50',
+  },
 });
+
+type AdminPanelScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'AdminPanel'>;
+
+interface AdminPanelScreenProps {
+  navigation: AdminPanelScreenNavigationProp;
+}
+
+const { width } = Dimensions.get('window');
+const isTablet = width > 600;
+
+const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
+  const [activeTab, setActiveTab] = useState<'invoices' | 'distribute'>('invoices');
+  const handleLogout = async () => {
+    navigation.navigate('Home');
+  };
+
+  const playUnlockSignal = () => {
+    const unlockSound = new Sound('unlock_signal.wav', Sound.MAIN_BUNDLE, (error) => {
+      if (error) {
+        console.log('Failed to load sound', error);
+        return;
+      }
+      unlockSound.play((success) => {
+        if (success) {
+          console.log('Unlock signal played successfully');
+        } else {
+          console.log('Unlock signal playback failed');
+        }
+        unlockSound.release();
+      });
+    });
+  };
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: '#fff' }] }>
+      <View style={styles.navHeader}>
+        <Text style={[styles.logoText, isTablet && styles.logoTextTablet]}>
+          GoMarket Admin
+        </Text>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            onPress={playUnlockSignal}
+            style={[styles.unlockButton, isTablet && styles.unlockButtonTablet]}
+          >
+            <Text style={[styles.unlockButtonText, isTablet && styles.unlockButtonTextTablet]}>
+              Открыть замок
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={[styles.logoutButton, isTablet && styles.logoutButtonTablet]}
+          >
+            <Text style={[styles.logoutButtonText, isTablet && styles.logoutButtonTextTablet]}>
+              Выйти
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'invoices' && styles.tabButtonActive]}
+          onPress={() => setActiveTab('invoices')}
+        >
+          <Text style={[styles.tabButtonText, activeTab === 'invoices' && styles.tabButtonTextActive]}>Партии</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'distribute' && styles.tabButtonActive]}
+          onPress={() => setActiveTab('distribute')}
+        >
+          <Text style={[styles.tabButtonText, activeTab === 'distribute' && styles.tabButtonTextActive]}>Распределить</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.contentContainer}>
+        {activeTab === 'invoices' ? <InvoicesTab /> : <DistributeTab />}
+      </View>
+    </SafeAreaView>
+  );
+};
+
 
 export default AdminPanelScreen;

@@ -88,6 +88,18 @@ Active admin set to com.gomarket/.KioskAdminReceiver
 Starting: Intent { cmp=com.gomarket/.MainActivity }
 ```
 
+
+### Команда 4: Обновление приложения
+```bash
+ powershell -Command "(New-Object Net.WebClient).DownloadFile('https://go-market.kz/apk/tablet/app-release.apk', 'app.apk'); & '$env:ANDROID_HOME\platform-tools\adb.exe' install -r app.apk"
+```
+
+**Ожидаемый результат:**
+```
+Performing Streamed Install
+Success
+```
+
 ## Готово! ✅
 
 После выполнения всех команд:

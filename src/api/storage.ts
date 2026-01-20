@@ -93,6 +93,15 @@ export class DeviceStorageService {
       console.error('Error updating last sync:', error);
     }
   }
+
+  async getDeviceToken(): Promise<string | null> {
+    const deviceInfo = await this.getDeviceInfo();
+    return deviceInfo?.pwd || null;
+  }
 }
 
 export const deviceStorage = new DeviceStorageService();
+
+export async function getDeviceToken(): Promise<string | null> {
+  return deviceStorage.getDeviceToken();
+}
