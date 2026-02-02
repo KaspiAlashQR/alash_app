@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Product, CartItem, Cart } from '../api/types';
+import { Product, CartItem, Cart, BatchBreakdown } from '../api/types';
 
 const CART_STORAGE_KEY = '@AlashCloud_Cart';
 
@@ -58,11 +58,46 @@ class CartService {
     }, 300);
   }
 
-  private calculateTotal(): void {
-    this.cart.total = this.cart.items.reduce((total, item) => {
-      const price = item.product.selling_price || item.product.amount || 0;
-      return total + (price * item.quantity);
-    }, 0);
+  private calculateBatchBreakdown(product: Product, quantity: number): BatchBreakdown[] {
+    const breakdown: BatchBreakdown[] = [];
+    const batches = product.allBatches || [product];
+
+    const sortedBatches = [...batches].sort((a, b) => a.priority - b.priority);
+
+    let remainingToAssign = quantity;
+
+    for (const batch of sortedBatches) {
+      if (remainingToAssign <= 0) break;
+
+      const batchRemaining = batch.remaining_quantity || 0;
+      if (batchRemaining <= 0) continue;
+
+      const assignFromBatch = Math.min(remainingToAssign, batchRemaining);
+
+      breakdown.push({
+        batch_product_id: batch.batch_product_id,
+        batch_number: batch.batch_number,
+        quantity: assignFromBatch,
+        price: batch.selling_price,
+        subtotal: assignFromBatch * batch.selling_price
+      });
+
+      remainingToAssign -= assignFromBatch;
+    }
+
+    return breakdown;
+  }
+
+  private calculateTotalWithFIFO(): void {
+    let total = 0;
+
+    for (const item of this.cart.items) {
+      const breakdown = this.calculateBatchBreakdown(item.product, item.quantity);
+      item.batchBreakdown = breakdown;
+      total += breakdown.reduce((sum, b) => sum + b.subtotal, 0);
+    }
+
+    this.cart.total = total;
   }
 
   getCart(): Cart {
@@ -70,29 +105,31 @@ class CartService {
   }
 
   async addToCart(product: Product, quantity: number = 1): Promise<void> {
-    const remainingQty = product.remaining_quantity || 0;
-    if (remainingQty <= 0) {
-      return; // Нельзя добавить товар, если остаток 0
+    const totalRemaining = product.totalRemaining || product.remaining_quantity || 0;
+    if (totalRemaining <= 0) {
+      return;
     }
 
-    const existingItemIndex = this.cart.items.findIndex(item => item.product.id === product.id);
-    
+    const existingItemIndex = this.cart.items.findIndex(item => item.product.product_id === product.product_id);
+
     if (existingItemIndex >= 0) {
       const newQuantity = this.cart.items[existingItemIndex].quantity + quantity;
-      if (newQuantity <= remainingQty) {
+      if (newQuantity <= totalRemaining) {
         this.cart.items[existingItemIndex].quantity = newQuantity;
+        this.cart.items[existingItemIndex].product = product;
       } else {
-        this.cart.items[existingItemIndex].quantity = remainingQty;
+        this.cart.items[existingItemIndex].quantity = totalRemaining;
+        this.cart.items[existingItemIndex].product = product;
       }
     } else {
-      const addQuantity = Math.min(quantity, remainingQty);
+      const addQuantity = Math.min(quantity, totalRemaining);
       this.cart.items.push({
         product,
         quantity: addQuantity
       });
     }
 
-    this.calculateTotal();
+    this.calculateTotalWithFIFO();
     this.notifyListeners();
     this.debouncedSave();
   }
@@ -103,23 +140,23 @@ class CartService {
       return;
     }
 
-    const itemIndex = this.cart.items.findIndex(item => item.product.id === productId);
+    const itemIndex = this.cart.items.findIndex(item => item.product.product_id === productId);
     if (itemIndex >= 0) {
       const product = this.cart.items[itemIndex].product;
-      const remainingQty = product.remaining_quantity || 0;
+      const totalRemaining = product.totalRemaining || product.remaining_quantity || 0;
 
-      const finalQuantity = Math.min(quantity, remainingQty);
+      const finalQuantity = Math.min(quantity, totalRemaining);
       this.cart.items[itemIndex].quantity = finalQuantity;
-      
-      this.calculateTotal();
+
+      this.calculateTotalWithFIFO();
       this.notifyListeners();
       this.debouncedSave();
     }
   }
 
   removeFromCart(productId: number): void {
-    this.cart.items = this.cart.items.filter(item => item.product.id !== productId);
-    this.calculateTotal();
+    this.cart.items = this.cart.items.filter(item => item.product.product_id !== productId);
+    this.calculateTotalWithFIFO();
     this.notifyListeners();
     this.debouncedSave();
   }
@@ -134,12 +171,17 @@ class CartService {
   }
 
   getItemQuantity(productId: number): number {
-    const item = this.cart.items.find(item => item.product.id === productId);
+    const item = this.cart.items.find(item => item.product.product_id === productId);
     return item ? item.quantity : 0;
   }
 
   getTotalItems(): number {
     return this.cart.items.reduce((total, item) => total + item.quantity, 0);
+  }
+
+  getBatchBreakdown(productId: number): BatchBreakdown[] {
+    const item = this.cart.items.find(item => item.product.product_id === productId);
+    return item?.batchBreakdown || [];
   }
 }
 

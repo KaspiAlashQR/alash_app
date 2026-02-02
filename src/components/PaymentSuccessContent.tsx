@@ -15,7 +15,6 @@ interface PaymentSuccessContentProps {
 
 const { width } = Dimensions.get('window');
 const isTablet = width > 600;
-const UNLOCK_TIMER_SECONDS = 15; // Предполагаем, что таймер разблокировки 15 секунд
 
 const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
   unlockTimer,
@@ -115,7 +114,17 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
         </Text>
 
         {showUnlockInstruction ? (
-          <Text style={[styles.doorOpenText, { opacity: 1 }]}>Дождитесь зелёного света, чтобы открыть дверь.</Text>
+          <View style={styles.instructionContainer}>
+            <Text style={[styles.instructionText, { opacity: isBlinking ? 1 : 0.3 }]}>
+              Дождитесь зелёного света, чтобы открыть дверь.
+            </Text>
+            <Text style={[styles.instructionText, { opacity: isBlinking ? 1 : 0.3 }]}>
+              Дверь открывается на 15 секунд, только один раз.
+            </Text>
+            <Text style={[styles.instructionText, { opacity: isBlinking ? 1 : 0.3 }]}>
+              После закрытия дверь блокируется автоматически.
+            </Text>
+          </View>
         ) : (
           <>
             <View style={styles.timerBlock}>
@@ -290,6 +299,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6B7280',
     textAlign: 'center',
+  },
+  instructionContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  instructionText: {
+    fontSize: isTablet ? 18 : 16,
+    fontWeight: '600',
+    color: '#1A202C',
+    textAlign: 'center',
+    marginBottom: 8,
   },
 });
 

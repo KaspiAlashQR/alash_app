@@ -12,40 +12,39 @@ const { width } = Dimensions.get('window');
 const isTablet = width > 600;
 
 const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product, readOnly = false }) => {
-  console.log('CustomerProductCard: Rendering product:', product.product_name || product.name, 'remaining:', product.remaining_quantity, 'readOnly:', readOnly);
+  const totalRemaining = product.totalRemaining || product.remaining_quantity || 0;
+  console.log('CustomerProductCard: Rendering product:', product.product_name || product.name, 'totalRemaining:', totalRemaining, 'readOnly:', readOnly);
   const [quantity, setQuantity] = useState(0);
 
   useEffect(() => {
     if (!readOnly) {
       const unsubscribe = cartService.subscribe(() => {
-        setQuantity(cartService.getItemQuantity(product.id));
+        setQuantity(cartService.getItemQuantity(product.product_id));
       });
 
-      setQuantity(cartService.getItemQuantity(product.id));
+      setQuantity(cartService.getItemQuantity(product.product_id));
 
       return unsubscribe;
     }
-  }, [product.id, readOnly]);
+  }, [product.product_id, readOnly]);
 
   const handleCardPress = async () => {
     if (quantity === 0) {
-      const remainingQty = product.remaining_quantity || 0;
-      if (remainingQty > 0) {
+      if (totalRemaining > 0) {
         await cartService.addToCart(product, 1);
       }
     }
   };
 
   const handleIncreaseQuantity = async () => {
-    const remainingQty = product.remaining_quantity || 0;
-    if (quantity < remainingQty) {
-      await cartService.updateQuantity(product.id, quantity + 1);
+    if (quantity < totalRemaining) {
+      await cartService.updateQuantity(product.product_id, quantity + 1);
     }
   };
 
   const handleDecreaseQuantity = async () => {
     if (quantity > 0) {
-      await cartService.updateQuantity(product.id, quantity - 1);
+      await cartService.updateQuantity(product.product_id, quantity - 1);
     }
   };
 
@@ -84,12 +83,12 @@ const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product, read
           <Text style={styles.productPrice}>
             {(product.selling_price || product.amount || 0).toLocaleString('ru-RU')} ₸
           </Text>
-          
-                <Text style={styles.stockText}>
-                  {product.remaining_quantity || 0} шт
-                </Text>
+
+          <Text style={styles.stockText}>
+            {totalRemaining} шт
+          </Text>
         </View>
-        
+
         {!readOnly && quantity > 0 && (
           <View style={styles.actionsContainer}>
             <View style={styles.quantityContainer}>
@@ -99,16 +98,16 @@ const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product, read
               >
                 <Text style={styles.quantityButtonText}>−</Text>
               </TouchableOpacity>
-              
+
               <Text style={styles.quantityText}>{quantity}</Text>
-              
+
               <TouchableOpacity
                 style={[
                   styles.quantityButton,
-                  (product.remaining_quantity || 0) <= quantity && styles.quantityButtonDisabled
+                  totalRemaining <= quantity && styles.quantityButtonDisabled
                 ]}
                 onPress={handleIncreaseQuantity}
-                disabled={(product.remaining_quantity || 0) <= quantity}
+                disabled={totalRemaining <= quantity}
               >
                 <Text style={styles.quantityButtonText}>+</Text>
               </TouchableOpacity>

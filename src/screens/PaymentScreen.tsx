@@ -31,7 +31,7 @@ const isTablet = width > 600;
 const QR_SIZE = isTablet ? 320 : 260;
 const POLL_INTERVAL_MS = 2000;
 const TIMEOUT_MS = 2 * 60 * 1000;
-const UNLOCK_TIMER_SECONDS = 20;
+const UNLOCK_TIMER_SECONDS = 15;
 
 const KaspiLogo: React.FC<{ width?: number; height?: number }> = ({ width = 51, height = 51 }) => (
   <Svg width={width} height={height} viewBox="0 0 51 51" fill="none">
@@ -122,8 +122,8 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
           setPaymentSuccess(true);
           playUnlockSignal();
           unlockInstructionTimeoutRef.current = setTimeout(() => {
+            if (!mountedRef.current) return;
             setShowUnlockInstruction(false);
-            setUnlockTimer(20); 
             startUnlockTimer();
             playSuccessSound();
             startBackgroundMusic();
@@ -273,10 +273,14 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   const startUnlockTimer = () => {
     setUnlockTimer(UNLOCK_TIMER_SECONDS);
     unlockTimerRef.current = setInterval(() => {
+      if (!mountedRef.current) {
+        clearUnlockTimer();
+        return;
+      }
       setUnlockTimer(prev => {
         if (prev <= 1) {
           clearUnlockTimer();
-          goToHome(); 
+          goToHome();
           return 0;
         }
         return prev - 1;

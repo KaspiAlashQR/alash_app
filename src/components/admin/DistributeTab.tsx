@@ -45,7 +45,11 @@ const DistributeTab: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <DeviceCurrentProducts deviceId={deviceId} key={refreshKey} />
+      <DeviceCurrentProducts
+          deviceId={deviceId}
+          key={refreshKey}
+          onProductRemoved={() => setRefreshKey(prev => prev + 1)}
+        />
 
       <View style={styles.bottomSection}>
         <TouchableOpacity

@@ -31,11 +31,22 @@ export interface Product {
   name_ru?: string;
   name_kz?: string;
   invoice_product_id?: number;
+  allBatches?: Product[];
+  totalRemaining?: number;
+}
+
+export interface BatchBreakdown {
+  batch_product_id: number;
+  batch_number: string;
+  quantity: number;
+  price: number;
+  subtotal: number;
 }
 
 export interface CartItem {
   product: Product;
   quantity: number;
+  batchBreakdown?: BatchBreakdown[];
 }
 
 export interface Cart {

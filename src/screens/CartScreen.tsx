@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../utils/navigation.types';
 import { cartService } from '../services/cartService';
-import { Cart, CartItem } from '../api/types';
+import { Cart, CartItem, BatchBreakdown } from '../api/types';
 import { alashCloudAPI } from '../api/client';
 import { deviceStorage } from '../api/storage';
 import { createInternalOrder } from '../api/orders';
@@ -18,16 +18,14 @@ interface CartScreenProps {
 const { width } = Dimensions.get('window');
 const isTablet = width > 600;
 
-// Компонент счетчика с локальным состоянием
 const QuantityCounter: React.FC<{
   quantity: number;
-  productPrice: number;
   remainingQuantity: number;
+  batchBreakdown?: BatchBreakdown[];
   onIncrement: () => void;
   onDecrement: () => void;
-}> = ({ quantity, productPrice, remainingQuantity, onIncrement, onDecrement }) => {
-  // Мгновенный расчет цены
-  const currentTotal = productPrice * quantity;
+}> = ({ quantity, remainingQuantity, batchBreakdown, onIncrement, onDecrement }) => {
+  const currentTotal = batchBreakdown?.reduce((sum, b) => sum + b.subtotal, 0) || 0;
 
   return (
     <View style={styles.itemActions}>
@@ -39,9 +37,9 @@ const QuantityCounter: React.FC<{
         >
           <Text style={styles.quantityButtonText}>−</Text>
         </TouchableOpacity>
-        
+
         <Text style={styles.quantityText}>{quantity}</Text>
-        
+
         <TouchableOpacity
           style={[
             styles.quantityButton,
@@ -62,19 +60,12 @@ const QuantityCounter: React.FC<{
   );
 };
 
-// Компонент для мгновенного отображения общей суммы
 const CartTotal: React.FC<{ cart: Cart }> = ({ cart }) => {
-  // Прямой расчет без локального состояния
-  const currentTotal = cart.items.reduce((sum, item) => {
-    const price = item.product.selling_price || item.product.amount || 0;
-    return sum + (price * item.quantity);
-  }, 0);
-
   return (
     <View style={styles.totalContainer}>
       <Text style={styles.totalLabel}>Итого:</Text>
       <Text style={styles.totalAmount}>
-        {currentTotal.toLocaleString('ru-RU')} ₸
+        {cart.total.toLocaleString('ru-RU')} ₸
       </Text>
     </View>
   );
@@ -207,10 +198,7 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
         return;
       }
 
-      const sum = cart.items.reduce((total, item) => {
-        const price = item.product.selling_price || item.product.amount || 0;
-        return total + (price * item.quantity);
-      }, 0);
+      const sum = cart.total;
       const product_name = cart.items.map(item => ({ 
         name: item.product.name_ru || item.product.name || '', 
         quantity: item.quantity 
@@ -249,39 +237,56 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
     }
   };
 
-  const renderCartItem = (item: CartItem) => (
-    <View key={item.product.id} style={styles.cartItem}>
-      <View style={styles.itemImageContainer}>
-        {item.product.image_url || item.product.url ? (
-          <Image 
-            source={{ uri: item.product.image_url || item.product.url || '' }} 
-            style={styles.itemImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={styles.placeholderImage}>
-            <Text style={styles.placeholderText}>Нет фото</Text>
-          </View>
-        )}
-      </View>
+  const renderCartItem = (item: CartItem) => {
+    const totalRemaining = item.product.totalRemaining || item.product.remaining_quantity || 0;
+    const breakdown = item.batchBreakdown || [];
 
-      <View style={styles.itemInfo}>
-        <Text style={styles.itemName}>{item.product.name_ru || item.product.name || ''}</Text>
-        <View style={styles.itemPriceAndStock}>
-          <Text style={styles.itemPrice}>{(item.product.selling_price || item.product.amount || 0).toLocaleString('ru-RU')} ₸</Text>
-          <Text style={styles.itemStock}>Остаток: {item.product.remaining_quantity || 0} шт</Text>
+    return (
+      <View key={item.product.product_id} style={styles.cartItem}>
+        <View style={styles.itemImageContainer}>
+          {item.product.image_url || item.product.url ? (
+            <Image
+              source={{ uri: item.product.image_url || item.product.url || '' }}
+              style={styles.itemImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.placeholderImage}>
+              <Text style={styles.placeholderText}>Нет фото</Text>
+            </View>
+          )}
         </View>
-      </View>
 
-      <QuantityCounter
-        quantity={item.quantity}
-        productPrice={item.product.selling_price || item.product.amount || 0}
-        remainingQuantity={item.product.remaining_quantity || 0}
-        onIncrement={() => handleIncrement(item.product.id, item.quantity, item.product.remaining_quantity || 0)}
-        onDecrement={() => handleDecrement(item.product.id, item.quantity)}
-      />
-    </View>
-  );
+        <View style={styles.itemInfo}>
+          <Text style={styles.itemName}>{item.product.name_ru || item.product.name || ''}</Text>
+          <View style={styles.itemPriceAndStock}>
+            {breakdown.length > 1 ? (
+              <View>
+                {breakdown.map((b, idx) => (
+                  <Text key={idx} style={styles.batchPriceText}>
+                    {b.quantity} шт × {b.price.toLocaleString('ru-RU')} ₸
+                  </Text>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.itemPrice}>
+                {(item.product.selling_price || item.product.amount || 0).toLocaleString('ru-RU')} ₸
+              </Text>
+            )}
+            <Text style={styles.itemStock}>Остаток: {totalRemaining} шт</Text>
+          </View>
+        </View>
+
+        <QuantityCounter
+          quantity={item.quantity}
+          remainingQuantity={totalRemaining}
+          batchBreakdown={breakdown}
+          onIncrement={() => handleIncrement(item.product.product_id, item.quantity, totalRemaining)}
+          onDecrement={() => handleDecrement(item.product.product_id, item.quantity)}
+        />
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#fff' }] }>
@@ -451,6 +456,12 @@ const styles = StyleSheet.create({
     color: '#FF8A50',
     fontWeight: '600',
     marginBottom: 2,
+  },
+  batchPriceText: {
+    fontSize: isTablet ? 12 : 10,
+    color: '#FF8A50',
+    fontWeight: '500',
+    marginBottom: 1,
   },
   itemStock: {
     fontSize: isTablet ? 12 : 10,

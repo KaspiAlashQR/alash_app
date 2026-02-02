@@ -30,12 +30,11 @@ const { width } = Dimensions.get('window');
 const isTablet = width > 600;
 
 
-// Категории только из товаров в наличии
 type CategoryType = string;
 function getCategoriesFromProducts(products: Product[]): CategoryType[] {
   const set = new Set<string>();
   products.forEach((p: Product) => {
-    if (p.category && typeof p.category === 'string' && p.category.trim() !== '' && (p.remaining_quantity || 0) > 0) {
+    if (p.category && typeof p.category === 'string' && p.category.trim() !== '' && (p.totalRemaining || p.remaining_quantity || 0) > 0) {
       set.add(p.category.trim());
     }
   });
@@ -62,7 +61,9 @@ function groupProductsByPriority(products: Product[]): Product[] {
     productVariants.sort((a, b) => a.priority - b.priority);
 
     const bestVariant = productVariants[0];
-    console.log('HomeScreen: Selected best variant for', bestVariant.product_name, 'priority:', bestVariant.priority, 'remaining:', bestVariant.remaining_quantity);
+    const totalRemaining = productVariants.reduce((sum, p) => sum + (p.remaining_quantity || 0), 0);
+
+    console.log('HomeScreen: Selected best variant for', bestVariant.product_name, 'priority:', bestVariant.priority, 'totalRemaining:', totalRemaining);
 
     const displayProduct: Product = {
       ...bestVariant,
@@ -72,6 +73,8 @@ function groupProductsByPriority(products: Product[]): Product[] {
       amount: bestVariant.selling_price,
       url: bestVariant.image_url,
       invoice_product_id: bestVariant.batch_product_id,
+      allBatches: productVariants,
+      totalRemaining: totalRemaining,
     };
 
     groupedProducts.push(displayProduct);
@@ -219,10 +222,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const filteredProducts = (selectedCategoryId
     ? groupedProducts.filter((p) => p.category === selectedCategoryId)
-    : groupedProducts).filter((p) => (p.remaining_quantity || 0) > 0);
+    : groupedProducts).filter((p) => (p.totalRemaining || p.remaining_quantity || 0) > 0);
 
   console.log('HomeScreen: Filtered products count:', filteredProducts.length, 'selected category:', selectedCategoryId || 'all');
-  console.log('HomeScreen: Products with remaining_quantity > 0:', filteredProducts.filter(p => (p.remaining_quantity || 0) > 0).length);
+  console.log('HomeScreen: Products with totalRemaining > 0:', filteredProducts.filter(p => (p.totalRemaining || 0) > 0).length);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#f8fafc', flexDirection: 'row' }] }>
