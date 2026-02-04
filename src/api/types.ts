@@ -300,3 +300,10 @@ export interface BatchProductDetail {
 export interface BatchProductsDetailResponse {
   rows: BatchProductDetail[];
 }
+
+// Imou Camera Settings
+export interface CameraSettings {
+  deviceId: string; // Серийный номер камеры (до 20 символов)
+  password: string; // Код камеры (ключ шифрования видео)
+}
+

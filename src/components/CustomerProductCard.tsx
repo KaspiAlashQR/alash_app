@@ -13,7 +13,6 @@ const isTablet = width > 600;
 
 const CustomerProductCard: React.FC<CustomerProductCardProps> = ({ product, readOnly = false }) => {
   const totalRemaining = product.totalRemaining || product.remaining_quantity || 0;
-  console.log('CustomerProductCard: Rendering product:', product.product_name || product.name, 'totalRemaining:', totalRemaining, 'readOnly:', readOnly);
   const [quantity, setQuantity] = useState(0);
 
   useEffect(() => {

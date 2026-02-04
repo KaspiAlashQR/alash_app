@@ -84,6 +84,11 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+
+        // Imou SDK - поддерживаемые архитектуры
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a"
+        }
     }
     signingConfigs {
         debug {
@@ -107,6 +112,12 @@ android {
     }
 }
 
+repositories {
+    flatDir {
+        dirs 'libs'
+    }
+}
+
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
@@ -116,4 +127,11 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    // Imou Camera SDK
+    implementation(name: 'LCOpenSDK', ext: 'aar')
+    implementation(name: 'LCOpenMediaSDK', ext: 'aar')
+    
+    // Gson - required by Imou SDK
+    implementation 'com.google.code.gson:gson:2.10.1'
 }

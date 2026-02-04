@@ -1,10 +1,11 @@
-import { DeviceInfo, StoredDeviceData } from '../api/types';
+import { DeviceInfo, StoredDeviceData, CameraSettings } from '../api/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEYS = {
   DEVICE_DATA: 'device_data',
   FIRST_LAUNCH: 'first_launch',
   SETUP_COMPLETE: 'setup_complete',
+  CAMERA_SETTINGS: 'camera_settings',
 } as const;
 
 export class DeviceStorageService {
@@ -97,6 +98,34 @@ export class DeviceStorageService {
   async getDeviceToken(): Promise<string | null> {
     const deviceInfo = await this.getDeviceInfo();
     return deviceInfo?.pwd || null;
+  }
+
+  // Camera Settings
+  async saveCameraSettings(settings: CameraSettings): Promise<void> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.CAMERA_SETTINGS, JSON.stringify(settings));
+    } catch (error) {
+      console.error('Error saving camera settings:', error);
+      throw new Error('Не удалось сохранить настройки камеры');
+    }
+  }
+
+  async getCameraSettings(): Promise<CameraSettings | null> {
+    try {
+      const dataStr = await AsyncStorage.getItem(STORAGE_KEYS.CAMERA_SETTINGS);
+      return dataStr ? JSON.parse(dataStr) as CameraSettings : null;
+    } catch (error) {
+      console.error('Error getting camera settings:', error);
+      return null;
+    }
+  }
+
+  async clearCameraSettings(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEYS.CAMERA_SETTINGS);
+    } catch (error) {
+      console.error('Error clearing camera settings:', error);
+    }
   }
 }
 

@@ -379,9 +379,10 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
           unlockTimer={unlockTimer}
           cartItems={savedCartItems}
           totalAmount={paymentAmount}
-          frontCamera={frontCamera}
-          hasPermission={hasPermission || false}
-          isCameraActive={isCameraActive}
+          // Закомментировано - пропсы фронтальной камеры
+          // frontCamera={frontCamera}
+          // hasPermission={hasPermission || false}
+          // isCameraActive={isCameraActive}
           showUnlockInstruction={showUnlockInstruction}
         />
       )}

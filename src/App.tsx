@@ -22,6 +22,9 @@ import InitialSetupScreen from './screens/InitialSetupScreen';
 import CartScreen from './screens/CartScreen';
 import PaymentScreen from './screens/PaymentScreen';
 import BatchDetailsScreen from './screens/BatchDetailsScreen';
+import ImouDeviceListScreen from './screens/ImouDeviceListScreen';
+import ImouDeviceViewScreen from './screens/ImouDeviceViewScreen';
+import ImouAddDeviceScreen from './screens/ImouAddDeviceScreen';
 
 // Utils
 import { KioskModule } from './utils/KioskModule';
@@ -141,6 +144,30 @@ function App(): React.JSX.Element {
             component={BatchDetailsScreen}
             options={{
               title: 'Детали партии',
+              gestureEnabled: true,
+            }}
+          />
+          <Stack.Screen
+            name="ImouDeviceList"
+            component={ImouDeviceListScreen}
+            options={{
+              title: 'Устройства IMOU',
+              gestureEnabled: true,
+            }}
+          />
+          <Stack.Screen
+            name="ImouDeviceView"
+            component={ImouDeviceViewScreen}
+            options={{
+              title: 'Просмотр камеры',
+              gestureEnabled: true,
+            }}
+          />
+          <Stack.Screen
+            name="ImouAddDevice"
+            component={ImouAddDeviceScreen}
+            options={{
+              title: 'Настройка камеры',
               gestureEnabled: true,
             }}
           />

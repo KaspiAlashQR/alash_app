@@ -1,15 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, Dimensions } from 'react-native';
-import { Camera, CameraDevice } from 'react-native-vision-camera';
+// import { Camera, CameraDevice } from 'react-native-vision-camera'; // Закомментировано - фронтальная камера
 import { CartItem } from '../api/types';
+import { deviceStorage } from '../api/storage';
+import { imouSDK, ImouCameraView } from '../../Imou/typescript/imou';
+import type { ImouCameraViewRef } from '../../Imou/typescript/imou';
 
 interface PaymentSuccessContentProps {
   unlockTimer: number;
   cartItems: CartItem[];
   totalAmount: number;
-  frontCamera: CameraDevice | undefined;
-  hasPermission: boolean;
-  isCameraActive: boolean;
+  // Закомментировано - пропсы фронтальной камеры
+  // frontCamera: CameraDevice | undefined;
+  // hasPermission: boolean;
+  // isCameraActive: boolean;
   showUnlockInstruction?: boolean;
 }
 
@@ -20,12 +24,84 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
   unlockTimer,
   cartItems,
   totalAmount,
-  frontCamera,
-  hasPermission,
-  isCameraActive,
+  // Закомментировано - пропсы фронтальной камеры
+  // frontCamera,
+  // hasPermission,
+  // isCameraActive,
   showUnlockInstruction,
 }) => {
   const [isBlinking, setIsBlinking] = useState(true);
+  
+  // IMOU Camera State
+  const [imouCameraReady, setImouCameraReady] = useState(false);
+  const [imouDeviceId, setImouDeviceId] = useState<string>('');
+  const [imouPassword, setImouPassword] = useState<string>('');
+  const [imouAccessToken, setImouAccessToken] = useState<string>('');
+  const [imouPlayToken, setImouPlayToken] = useState<string>('');
+  const [imouError, setImouError] = useState<string | null>(null);
+  const imouCameraRef = useRef<ImouCameraViewRef>(null);
+
+  // Инициализация IMOU камеры
+  useEffect(() => {
+    const initImouCamera = async () => {
+      console.log('[IMOU] ====== Starting camera initialization ======');
+      try {
+        // Получаем настройки камеры из хранилища
+        console.log('[IMOU] Step 1: Getting camera settings from storage...');
+        const cameraSettings = await deviceStorage.getCameraSettings();
+        console.log('[IMOU] Camera settings result:', JSON.stringify(cameraSettings, null, 2));
+        
+        if (!cameraSettings?.deviceId) {
+          console.log('[IMOU] ERROR: No deviceId in camera settings');
+          setImouError('Камера не настроена');
+          return;
+        }
+
+        const deviceId = cameraSettings.deviceId;
+        const password = cameraSettings.password ?? cameraSettings.deviceId;
+        setImouDeviceId(deviceId);
+        setImouPassword(password);
+        console.log('[IMOU] Step 2: Device ID set:', deviceId, 'Password:', password ? 'SET' : 'USING_DEVICE_ID');
+
+        console.log('[IMOU] Step 3: Getting local access_token...');
+        const localAccessToken = await imouSDK.getAccessToken();
+        console.log('[IMOU] Local access_token obtained:', localAccessToken.substring(0, 20) + '...');
+
+        console.log('[IMOU] Step 4: Initializing SDK with local access_token...');
+        try {
+          const sdkResult = await imouSDK.initSDK(localAccessToken);
+          console.log('[IMOU] SDK initSDK result:', sdkResult);
+        } catch (sdkError: any) {
+          console.error('[IMOU] SDK initSDK ERROR:', sdkError?.message || sdkError);
+        }
+
+        console.log('[IMOU] Step 5: Getting local kit_token...');
+        const kitTokenData = await imouSDK.getKitToken(deviceId, '0', '0');
+        console.log('[IMOU] Local kit_token obtained:', kitTokenData.kitToken.substring(0, 30) + '...');
+
+        setImouAccessToken(localAccessToken);
+        setImouPlayToken(kitTokenData.kitToken);
+        setImouCameraReady(true);
+        console.log('[IMOU] ====== Camera initialization SUCCESS (local SDK only) ======');
+      } catch (error: any) {
+        console.error('[IMOU] ====== Camera initialization FAILED ======');
+        console.error('[IMOU] Error type:', typeof error);
+        console.error('[IMOU] Error message:', error?.message);
+        console.error('[IMOU] Error stack:', error?.stack);
+        console.error('[IMOU] Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+        setImouError(`Ошибка: ${error?.message || 'Неизвестная ошибка'}`);
+      }
+    };
+
+    initImouCamera();
+
+    return () => {
+      // Остановить стрим при размонтировании
+      if (imouCameraRef.current) {
+        imouCameraRef.current.stopPreview();
+      }
+    };
+  }, []);
 
   // Мигание для текста "Дверь открыта"
   useEffect(() => {
@@ -88,9 +164,10 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
           </ScrollView>
         </View>
 
-        {/* Правая часть - Камера */}
+        {/* Правая часть - IMOU Камера видеонаблюдения */}
         <View style={styles.cameraContainer}>
           <View style={styles.cameraWrapper}>
+            {/* Закомментировано - фронтальная камера планшета
             {isCameraActive && frontCamera && hasPermission && (
               <Camera
                 style={styles.camera}
@@ -99,6 +176,36 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
                 photo={false}
                 video={false}
               />
+            )}
+            */}
+            
+            {/* IMOU Камера видеонаблюдения */}
+            {imouCameraReady && imouDeviceId && imouAccessToken && imouPlayToken ? (
+              <ImouCameraView
+                ref={imouCameraRef}
+                style={styles.camera}
+                deviceId={imouDeviceId}
+                channelId={0}
+                accessToken={imouAccessToken}
+                playToken={imouPlayToken}
+                password={imouPassword}
+                streamType={1} // SD stream для экономии ресурсов
+                autoPlay={true}
+                onPlayStart={() => console.log('IMOU Camera: playback started')}
+                onPlayStop={() => console.log('IMOU Camera: playback stopped')}
+                onError={(error) => {
+                  console.error('IMOU Camera error:', error);
+                  setImouError(error.error);
+                }}
+              />
+            ) : (
+              <View style={styles.cameraPlaceholder}>
+                {imouError ? (
+                  <Text style={styles.cameraErrorText}>{imouError}</Text>
+                ) : (
+                  <Text style={styles.cameraLoadingText}>Загрузка камеры...</Text>
+                )}
+              </View>
             )}
           </View>
           <Text style={styles.surveillanceText}>
@@ -254,6 +361,24 @@ const styles = StyleSheet.create({
   camera: {
     width: '100%',
     height: '100%',
+  },
+  cameraPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#1A202C',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cameraLoadingText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  cameraErrorText: {
+    color: '#F14635',
+    fontSize: 11,
+    textAlign: 'center',
+    paddingHorizontal: 8,
   },
   surveillanceText: {
     fontSize: isTablet ? 12 : 10,

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:open.imoulife.com)",
+      "Bash(npm install:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:user2684.github.io)",
+      "Bash(xargs:*)"
+    ]
+  }
+}

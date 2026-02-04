@@ -9,6 +9,9 @@ export type RootStackParamList = {
   Cart: undefined;
   Payment: { orderId: number; payUrl: string; internalOrderId: number; cartItems: CartItem[] };
   BatchDetails: { batchId: number; batchNumber: string };
+  ImouDeviceList: undefined;
+  ImouDeviceView: { deviceId: string; deviceName: string; channelId: string };
+  ImouAddDevice: undefined;
 };
 
 declare global {

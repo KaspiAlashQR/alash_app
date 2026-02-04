@@ -28,7 +28,6 @@ const iconNames: Record<string, string> = {
 };
 
 const CategorySidebar: React.FC<CategorySidebarProps> = ({ categories, selectedCategory, onSelect, isTablet, style }) => {
-  console.log('CategorySidebar: Rendering categories:', categories, 'selected:', selectedCategory);
   const sidebarWidth = isTablet ? 110 : 72;
   const categoryItemWidth = isTablet ? 88 : 60;
   const categoryIconSize = isTablet ? 48 : 36;

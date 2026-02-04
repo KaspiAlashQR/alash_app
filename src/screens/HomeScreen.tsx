@@ -42,19 +42,14 @@ function getCategoriesFromProducts(products: Product[]): CategoryType[] {
 }
 
 function groupProductsByPriority(products: Product[]): Product[] {
-  console.log('HomeScreen: Grouping products by priority, input count:', products.length);
-
   const productMap = new Map<number, Product[]>();
 
   products.forEach(product => {
-    console.log('HomeScreen: Processing product:', product.product_id, product.product_name, 'remaining:', product.remaining_quantity);
     if (!productMap.has(product.product_id)) {
       productMap.set(product.product_id, []);
     }
     productMap.get(product.product_id)!.push(product);
   });
-
-  console.log('HomeScreen: Unique product IDs found:', productMap.size);
 
   const groupedProducts: Product[] = [];
   productMap.forEach(productVariants => {
@@ -62,8 +57,6 @@ function groupProductsByPriority(products: Product[]): Product[] {
 
     const bestVariant = productVariants[0];
     const totalRemaining = productVariants.reduce((sum, p) => sum + (p.remaining_quantity || 0), 0);
-
-    console.log('HomeScreen: Selected best variant for', bestVariant.product_name, 'priority:', bestVariant.priority, 'totalRemaining:', totalRemaining);
 
     const displayProduct: Product = {
       ...bestVariant,
@@ -80,7 +73,6 @@ function groupProductsByPriority(products: Product[]): Product[] {
     groupedProducts.push(displayProduct);
   });
 
-  console.log('HomeScreen: Grouped products count:', groupedProducts.length);
   return groupedProducts;
 }
 
@@ -122,7 +114,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         const storedDeviceInfo = await deviceStorage.getDeviceInfo();
         
         if (storedDeviceInfo) {
-          console.log('HomeScreen: Device setup complete, deviceId:', storedDeviceInfo.device_id);
           setDeviceInfo(storedDeviceInfo);
           setIsSetupComplete(true);
           await loadProducts(storedDeviceInfo.device_id);
@@ -143,7 +134,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const loadProducts = async (deviceId: number) => {
     try {
-      console.log('HomeScreen: Loading products for deviceId:', deviceId);
       const response = await alashCloudAPI.getDevicePrices(deviceId);
 
       if (isApiError(response)) {
@@ -153,10 +143,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       }
 
       if (isProductsResponse(response)) {
-        console.log('HomeScreen: Received products count:', response.rows?.length || 0);
-        if (response.rows && response.rows.length > 0) {
-          console.log('HomeScreen: First product sample:', JSON.stringify(response.rows[0], null, 2));
-        }
         setProducts(response.rows || []);
       } else {
         console.error('HomeScreen: Unexpected response format:', response);
@@ -218,14 +204,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const groupedProducts = groupProductsByPriority(products);
 
   const categories = getCategoriesFromProducts(groupedProducts);
-  console.log('HomeScreen: Categories found:', categories);
 
   const filteredProducts = (selectedCategoryId
     ? groupedProducts.filter((p) => p.category === selectedCategoryId)
     : groupedProducts).filter((p) => (p.totalRemaining || p.remaining_quantity || 0) > 0);
-
-  console.log('HomeScreen: Filtered products count:', filteredProducts.length, 'selected category:', selectedCategoryId || 'all');
-  console.log('HomeScreen: Products with totalRemaining > 0:', filteredProducts.filter(p => (p.totalRemaining || 0) > 0).length);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#f8fafc', flexDirection: 'row' }] }>
