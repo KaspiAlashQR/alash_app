@@ -29,6 +29,7 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
     private var accessToken: String = ""
     private var playToken: String = ""
     private var password: String = ""  // Пароль камеры (psk)
+    private var productId: String = "" // Product ID из API (НЕ deviceId!)
     private var streamType: Int = 1 // 0=HD, 1=SD
 
     init {
@@ -73,6 +74,11 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
     fun setStreamType(type: Int) {
         this.streamType = type
         Log.d(TAG, "Stream type set: $type")
+    }
+
+    fun setProductId(id: String) {
+        this.productId = id
+        Log.d(TAG, "Product ID set: $id")
     }
 
     fun startPreview() {
@@ -193,7 +199,8 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
 
             // STEP 4: Prepare parameters
             Log.d(TAG, "[STEP 4] Preparing LCOpenSDK_ParamReal...")
-            val productId = this.deviceId
+            // productId из API (может быть пустым - это нормально, как в демо проекте)
+            val productId = this.productId
             val psk = if (this.password.isNotEmpty()) this.password else this.deviceId
 
             Log.d(TAG, "  Parameters for LCOpenSDK_ParamReal:")

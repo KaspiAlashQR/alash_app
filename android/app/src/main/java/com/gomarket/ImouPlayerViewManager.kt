@@ -52,6 +52,11 @@ class ImouPlayerViewManager : SimpleViewManager<ImouPlayerView>() {
         password?.let { view.setPassword(it) }
     }
 
+    @ReactProp(name = "productId")
+    fun setProductId(view: ImouPlayerView, productId: String?) {
+        productId?.let { view.setProductId(it) }
+    }
+
     @ReactProp(name = "autoPlay", defaultBoolean = false)
     fun setAutoPlay(view: ImouPlayerView, autoPlay: Boolean) {
         if (autoPlay) {

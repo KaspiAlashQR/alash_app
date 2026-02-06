@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import imouSDK, { ImouDevice } from '../../Imou/typescript/imou';
 import { RootStackParamList } from '../utils/navigation.types';
+import { deviceStorage } from '../api/storage';
 
 type ImouDeviceListScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ImouDeviceList'>;
 
@@ -31,9 +32,57 @@ const ImouDeviceListScreen: React.FC<Props> = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // SubAccount state
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [subAccountEmail, setSubAccountEmail] = useState<string | null>(null);
+  const [noEmailConfigured, setNoEmailConfigured] = useState(false);
+
+  // Auto-login with stored email
+  const autoLogin = useCallback(async () => {
+    try {
+      // Check if already logged in
+      if (imouSDK.isSubAccountLoggedIn()) {
+        setIsLoggedIn(true);
+        setSubAccountEmail(imouSDK.getSubAccountEmail());
+        return true;
+      }
+
+      // Get email from device storage
+      const deviceInfo = await deviceStorage.getDeviceInfo();
+      const storedEmail = deviceInfo?.email;
+
+      if (!storedEmail) {
+        console.log('[ImouDeviceList] No email configured in device storage');
+        setNoEmailConfigured(true);
+        return false;
+      }
+
+      console.log('[ImouDeviceList] Auto-login with stored email:', storedEmail);
+      await imouSDK.loginSubAccount(storedEmail);
+      setIsLoggedIn(true);
+      setSubAccountEmail(storedEmail);
+      return true;
+    } catch (error: any) {
+      console.error('[ImouDeviceList] Auto-login failed:', error?.message);
+      Alert.alert('Ошибка входа', error?.message || 'Не удалось войти в IMOU');
+      return false;
+    }
+  }, []);
+
   const loadDevices = useCallback(async () => {
     try {
+      setLoading(true);
+
+      // Initialize SDK first
       await imouSDK.initialize();
+
+      // Try auto-login
+      const loggedIn = await autoLogin();
+      if (!loggedIn) {
+        setLoading(false);
+        return;
+      }
+
       const result = await imouSDK.getDeviceList();
       setDevices(result.devices);
     } catch (error: any) {
@@ -42,7 +91,7 @@ const ImouDeviceListScreen: React.FC<Props> = ({ navigation }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [autoLogin]);
 
   // Reload devices when screen comes into focus
   useFocusEffect(
@@ -57,6 +106,10 @@ const ImouDeviceListScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleAddDevice = () => {
+    if (!isLoggedIn) {
+      Alert.alert('Ошибка', 'Необходимо настроить email в настройках устройства');
+      return;
+    }
     navigation.navigate('ImouAddDevice');
   };
 
@@ -88,6 +141,8 @@ const ImouDeviceListScreen: React.FC<Props> = ({ navigation }) => {
       deviceId: device.deviceId,
       deviceName: device.name,
       channelId: device.channels?.[0]?.channelId || '0',
+      playToken: device.playToken, // Pass playToken from device list API
+      productId: device.productId, // Product ID из API (НЕ deviceId!)
     });
   };
 
@@ -137,16 +192,44 @@ const ImouDeviceListScreen: React.FC<Props> = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
+      {/* SubAccount info bar */}
+      {isLoggedIn && subAccountEmail && (
+        <View style={styles.accountBar}>
+          <View style={styles.accountInfo}>
+            <Icon name="account-circle" size={20} color="#22c55e" />
+            <Text style={styles.accountEmail} numberOfLines={1}>{subAccountEmail}</Text>
+          </View>
+          <Icon name="check-circle" size={20} color="#22c55e" />
+        </View>
+      )}
+
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2563eb" />
+          <Text style={styles.loadingText}>Подключение к IMOU...</Text>
+        </View>
+      ) : noEmailConfigured ? (
+        <View style={styles.emptyContainer}>
+          <Icon name="email-off" size={64} color="#d1d5db" />
+          <Text style={styles.emptyText}>Email не настроен</Text>
+          <Text style={styles.emptySubText}>
+            Для работы с камерами IMOU необходимо настроить email в настройках устройства
+          </Text>
+        </View>
+      ) : !isLoggedIn ? (
+        <View style={styles.emptyContainer}>
+          <Icon name="account-off" size={64} color="#d1d5db" />
+          <Text style={styles.emptyText}>Не удалось войти</Text>
+          <TouchableOpacity style={styles.emptyButton} onPress={loadDevices}>
+            <Text style={styles.emptyButtonText}>Повторить</Text>
+          </TouchableOpacity>
         </View>
       ) : devices.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Icon name="camera-off" size={64} color="#d1d5db" />
           <Text style={styles.emptyText}>Устройства не найдены</Text>
           <TouchableOpacity style={styles.emptyButton} onPress={handleAddDevice}>
-            <Text style={styles.emptyButtonText}>Настроить камеру</Text>
+            <Text style={styles.emptyButtonText}>Добавить камеру</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -190,10 +273,36 @@ const styles = StyleSheet.create({
   addButton: {
     padding: 8,
   },
+  accountBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#f0fdf4',
+    borderBottomWidth: 1,
+    borderBottomColor: '#dcfce7',
+  },
+  accountInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  accountEmail: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#166534',
+    flex: 1,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#6b7280',
   },
   emptyContainer: {
     flex: 1,
@@ -205,7 +314,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6b7280',
     marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubText: {
+    fontSize: 14,
+    color: '#9ca3af',
+    textAlign: 'center',
     marginBottom: 24,
+    lineHeight: 20,
   },
   emptyButton: {
     backgroundColor: '#2563eb',

@@ -5,7 +5,10 @@
       "Bash(npm install:*)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:user2684.github.io)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Bash(find:*)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Workspace\\\\alash_app\\\\android\\\\app\\\\src\\\\main\\\\java\" -Filter \"*.java\" -Recurse)",
+      "Bash(Select-Object FullName)"
     ]
   }
 }

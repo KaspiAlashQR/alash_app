@@ -20,6 +20,7 @@ interface ImouCameraViewProps {
   channelId?: number;
   accessToken: string;
   playToken?: string;  // Опционально - без него SDK использует "old streaming protocol"
+  productId?: string;  // Product ID из API (НЕ deviceId!) - требуется для видео
   password?: string;  // Пароль камеры (ключ дешифровки)
   streamType?: number;
   autoPlay?: boolean;
@@ -49,6 +50,7 @@ const ImouCameraView = forwardRef<ImouCameraViewRef, ImouCameraViewProps>(
       channelId = 0,
       accessToken,
       playToken,
+      productId,
       password,
       streamType = IMOU_STREAM_TYPE.SD,
       autoPlay = false,
@@ -106,6 +108,7 @@ const ImouCameraView = forwardRef<ImouCameraViewRef, ImouCameraViewProps>(
         channelId={channelId}
         accessToken={accessToken}
         playToken={playToken || ''}
+        productId={productId || ''} // Product ID из API (может быть пустым)
         password={password && password.length > 0 ? password : deviceId}
         streamType={streamType}
         autoPlay={autoPlay}

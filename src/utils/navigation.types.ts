@@ -10,7 +10,7 @@ export type RootStackParamList = {
   Payment: { orderId: number; payUrl: string; internalOrderId: number; cartItems: CartItem[] };
   BatchDetails: { batchId: number; batchNumber: string };
   ImouDeviceList: undefined;
-  ImouDeviceView: { deviceId: string; deviceName: string; channelId: string };
+  ImouDeviceView: { deviceId: string; deviceName: string; channelId: string; playToken?: string; productId?: string };
   ImouAddDevice: undefined;
 };
 

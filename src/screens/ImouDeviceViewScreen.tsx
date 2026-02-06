@@ -27,7 +27,7 @@ const { width } = Dimensions.get('window');
 const isTablet = width > 600;
 
 const ImouDeviceViewScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { deviceId, deviceName, channelId } = route.params;
+  const { deviceId, deviceName, channelId, playToken: routePlayToken, productId: routeProductId } = route.params;
   const cameraRef = useRef<ImouCameraViewRef>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,12 +46,44 @@ const ImouDeviceViewScreen: React.FC<Props> = ({ navigation, route }) => {
       setLoading(true);
       setError(null);
       await imouSDK.initialize();
-      const token = await imouSDK.getAccessToken();
+
+      // Check if subaccount is logged in
+      if (!imouSDK.isSubAccountLoggedIn()) {
+        setError('Необходимо войти в аккаунт IMOU');
+        setLoading(false);
+        return;
+      }
+
+      // Use subAccessToken for video preview (devices are bound to subaccount)
+      const token = imouSDK.getStoredSubAccessToken();
+      if (!token) {
+        setError('Токен не найден. Пожалуйста, войдите снова.');
+        setLoading(false);
+        return;
+      }
       setAccessToken(token);
-      const kitToken = await imouSDK.getKitToken(deviceId, channelId);
-      setPlayToken(kitToken.kitToken);
-      setLoading(false);
+
+      // Use playToken from route params (comes from device list API)
+      // This avoids the SUB1000 permission error from getKitToken
+      if (routePlayToken) {
+        console.log('[ImouDeviceView] Using playToken from route params');
+        setPlayToken(routePlayToken);
+        setLoading(false);
+      } else {
+        // Fallback: try getKitToken (may fail with SUB1000 for subaccounts)
+        console.log('[ImouDeviceView] No playToken in route, trying getKitToken...');
+        try {
+          const kitToken = await imouSDK.getKitToken(deviceId, channelId);
+          setPlayToken(kitToken.kitToken);
+          setLoading(false);
+        } catch (kitError: any) {
+          console.error('[ImouDeviceView] getKitToken failed:', kitError?.message);
+          setError('Нет playToken. Обновите список устройств.');
+          setLoading(false);
+        }
+      }
     } catch (err: any) {
+      console.error('[ImouDeviceView] initCamera error:', err);
       setError(err?.message || 'Ошибка инициализации');
       setLoading(false);
     }
@@ -121,6 +153,7 @@ const ImouDeviceViewScreen: React.FC<Props> = ({ navigation, route }) => {
             deviceId={deviceId}
             accessToken={accessToken}
             playToken={playToken}
+            productId={routeProductId} // Product ID из API (НЕ deviceId!)
             channelId={parseInt(channelId, 10)}
             streamType={streamType}
             autoPlay={true}

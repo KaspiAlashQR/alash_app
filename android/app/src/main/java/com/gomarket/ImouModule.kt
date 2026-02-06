@@ -408,8 +408,12 @@ class ImouModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMo
                         val wifiList = Arguments.createArray()
                         val wlanInfoList = msg.obj as? List<*>
 
-                        wlanInfoList?.forEach { item ->
+                        Log.d(TAG, "========== WiFi List from SDK ==========")
+                        Log.d(TAG, "Raw list size: ${wlanInfoList?.size ?: 0}")
+
+                        wlanInfoList?.forEachIndexed { index, item ->
                             if (item is WlanInfo) {
+                                Log.d(TAG, "WiFi[$index]: SSID='${item.wlanSSID}', Signal=${item.wlanQuality}, Auth=${item.wlanAuthMode}, Encr=${item.wlanEncrAlgr}")
                                 val wifiItem = Arguments.createMap().apply {
                                     putString("ssid", item.wlanSSID ?: "")
                                     putInt("encryptionType", item.wlanEncry)
@@ -423,7 +427,8 @@ class ImouModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMo
                             }
                         }
 
-                        Log.d(TAG, "WiFi list count: ${wifiList.size()}")
+                        Log.d(TAG, "========================================")
+                        Log.d(TAG, "WiFi list count returned to JS: ${wifiList.size()}")
                         promise.resolve(wifiList)
                     } else {
                         val errorMsg = if (msg.obj != null) msg.obj.toString() else "Unknown error"
