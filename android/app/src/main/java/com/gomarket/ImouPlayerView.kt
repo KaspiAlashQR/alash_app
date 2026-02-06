@@ -2,16 +2,15 @@ package com.gomarket
 
 import android.content.Context
 import android.util.Log
-import android.view.ViewGroup
+import android.view.SurfaceView
 import android.widget.FrameLayout
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.uimanager.events.RCTEventEmitter
-import com.lechange.opensdk.media.realtime.LCOpenSDK_PlayRealWindow
 import com.lechange.opensdk.media.LCOpenSDK_ParamReal
+import com.lechange.opensdk.media.realtime.LCOpenSDK_PlayRealWindow
 import com.lechange.opensdk.media.realtime.listener.LCOpenSDK_PlayRealListener
-import com.lechange.opensdk.utils.LCOpenSDK_DeviceInfo_Util
 
 class ImouPlayerView(context: Context) : FrameLayout(context) {
 
@@ -21,15 +20,15 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
 
     private var playWindow: LCOpenSDK_PlayRealWindow? = null
     private var isPlaying = false
-    private var contentView: FrameLayout? = null
+    private var isInitialized = false
 
     // Camera parameters
     private var deviceId: String = ""
     private var channelId: Int = 0
     private var accessToken: String = ""
     private var playToken: String = ""
-    private var password: String = ""  // Пароль камеры (psk)
-    private var productId: String = "" // Product ID из API (НЕ deviceId!)
+    private var password: String = ""
+    private var productId: String = ""
     private var streamType: Int = 1 // 0=HD, 1=SD
 
     init {
@@ -37,13 +36,37 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
     }
 
     private fun setupView() {
-        // Create content container for video rendering
-        contentView = FrameLayout(context).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-        }
-        addView(contentView)
-
+        // Set black background
+        setBackgroundColor(android.graphics.Color.BLACK)
         Log.d(TAG, "ImouPlayerView initialized")
+    }
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+
+        // Log when layout changes
+        val w = right - left
+        val h = bottom - top
+        Log.d(TAG, "onLayout: ${w}x${h}, changed=$changed, childCount=$childCount")
+
+        // Layout all children to fill the view
+        for (i in 0 until childCount) {
+            val child = getChildAt(i)
+            child.layout(0, 0, w, h)
+            Log.d(TAG, "  Child $i: ${child.javaClass.simpleName}, visibility=${child.visibility}")
+        }
+    }
+
+    override fun requestLayout() {
+        super.requestLayout()
+        // Required for React Native to properly layout native views
+        post {
+            measure(
+                MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY)
+            )
+            layout(left, top, right, bottom)
+        }
     }
 
     fun setDeviceId(id: String) {
@@ -92,8 +115,6 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
 
         if (deviceId.isEmpty() || accessToken.isEmpty()) {
             Log.e(TAG, "[STEP 0] ABORT: Missing required parameters")
-            Log.e(TAG, "  - deviceId: '${deviceId}' (empty=${deviceId.isEmpty()})")
-            Log.e(TAG, "  - accessToken: ${if (accessToken.isEmpty()) "EMPTY" else "${accessToken.take(20)}..."}")
             sendEvent("onError", Arguments.createMap().apply {
                 putString("error", "Missing deviceId or accessToken")
             })
@@ -101,148 +122,155 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
         }
 
         Log.d(TAG, "[STEP 0] Preconditions OK")
-        Log.d(TAG, "  - deviceId: ${deviceId}")
+        Log.d(TAG, "  - deviceId: $deviceId")
         Log.d(TAG, "  - accessToken: ${accessToken.take(30)}...")
-        Log.d(TAG, "  - playToken: ${if (playToken.isEmpty()) "EMPTY (will use old protocol)" else "${playToken.take(30)}..."}")
-        Log.d(TAG, "  - password: ${if (password.isEmpty()) "EMPTY" else "${password.take(5)}..."}")
-        Log.d(TAG, "  - channelId: $channelId")
-        Log.d(TAG, "  - streamType: $streamType (0=HD, 1=SD)")
+        Log.d(TAG, "  - playToken: ${if (playToken.isEmpty()) "EMPTY" else "${playToken.take(30)}..."}")
+        Log.d(TAG, "  - view size: ${width}x${height}")
 
         try {
-            // STEP 1: Create PlayWindow
+            // STEP 1: Create PlayWindow (using LCOpenSDK_PlayRealWindow like in OpenCellWindow demo)
             Log.d(TAG, "[STEP 1] Creating LCOpenSDK_PlayRealWindow...")
             playWindow = LCOpenSDK_PlayRealWindow()
-            Log.d(TAG, "[STEP 1] LCOpenSDK_PlayRealWindow created: ${playWindow != null}")
+            Log.d(TAG, "[STEP 1] Created: ${playWindow != null}")
 
-            // STEP 2: Initialize PlayWindow
-            Log.d(TAG, "[STEP 2] Calling initPlayWindow(context, contentView, 0, false)...")
-            Log.d(TAG, "  - contentView: ${contentView != null}, size: ${contentView?.width}x${contentView?.height}")
-            playWindow?.initPlayWindow(context, contentView as ViewGroup, 0, false)
+            // STEP 2: Initialize PlayWindow with 'this' as container (like in demo)
+            Log.d(TAG, "[STEP 2] Calling initPlayWindow(context, this, 0, false)...")
+            playWindow?.initPlayWindow(context, this, 0, false)
+            isInitialized = true
             Log.d(TAG, "[STEP 2] initPlayWindow() completed")
 
-            // STEP 3: Set event listener
+            // Log children after init
+            Log.d(TAG, "[STEP 2] After init, childCount=$childCount")
+            for (i in 0 until childCount) {
+                val child = getChildAt(i)
+                Log.d(TAG, "  Child $i: ${child.javaClass.simpleName}")
+            }
+
+            // STEP 3: Set listener (using LCOpenSDK_PlayRealListener like in demo)
             Log.d(TAG, "[STEP 3] Setting PlayRealListener...")
             playWindow?.setPlayRealListener(object : LCOpenSDK_PlayRealListener() {
-                override fun onPlayBegin(winID: Int, context: String?) {
-                    Log.d(TAG, ">>> CALLBACK: onPlayBegin - winID=$winID, context=$context")
+                override fun onPlayBegin(winID: Int, ctx: String?) {
+                    super.onPlayBegin(winID, ctx)
+                    Log.d(TAG, ">>> CALLBACK: onPlayBegin - winID=$winID")
                     post {
                         isPlaying = true
                         sendEvent("onPlayStart", Arguments.createMap())
+
+                        // Force layout update
+                        requestLayout()
+                        invalidate()
                     }
                 }
 
                 override fun onPlayLoading(winID: Int) {
+                    super.onPlayLoading(winID)
                     Log.d(TAG, ">>> CALLBACK: onPlayLoading - winID=$winID")
                 }
 
-                override fun onPlayFail(winID: Int, errorCode: String?, errorType: String?, resultSource: Int) {
-                    Log.e(TAG, ">>> CALLBACK: onPlayFail <<<")
-                    Log.e(TAG, "  - winID: $winID")
-                    Log.e(TAG, "  - errorCode: $errorCode")
-                    Log.e(TAG, "  - errorType: $errorType")
-                    Log.e(TAG, "  - resultSource: $resultSource")
+                override fun onPlayFail(winID: Int, errorCode: String?, errorMsg: String?, type: Int) {
+                    super.onPlayFail(winID, errorCode, errorMsg, type)
+                    Log.e(TAG, ">>> CALLBACK: onPlayFail - code=$errorCode, msg=$errorMsg, type=$type")
                     post {
                         isPlaying = false
                         sendEvent("onError", Arguments.createMap().apply {
                             putString("code", errorCode ?: "unknown")
-                            putString("error", "Play failed: $errorCode ($errorType)")
+                            putString("error", errorMsg ?: "Play failed")
                         })
                     }
                 }
 
-                override fun onReceiveData(winID: Int, context: String?, len: Int) {
+                override fun onReceiveData(winID: Int, ctx: String?, len: Int) {
+                    super.onReceiveData(winID, ctx, len)
                     Log.v(TAG, ">>> CALLBACK: onReceiveData - len=$len bytes")
                 }
 
                 override fun onResolutionChanged(winID: Int, width: Int, height: Int) {
+                    super.onResolutionChanged(winID, width, height)
                     Log.d(TAG, ">>> CALLBACK: onResolutionChanged - ${width}x${height}")
                     post {
                         sendEvent("onResolutionChanged", Arguments.createMap().apply {
                             putInt("width", width)
                             putInt("height", height)
                         })
+                        // Force layout after resolution change
+                        requestLayout()
                     }
                 }
 
-                override fun onRecordStop(winID: Int, context: String?, error: Int) {
+                override fun onRecordStop(winID: Int, ctx: String?, error: Int) {
+                    super.onRecordStop(winID, ctx, error)
                     Log.d(TAG, ">>> CALLBACK: onRecordStop - error=$error")
                 }
 
-                override fun onStreamLogInfo(winID: Int, context: String?, logMessage: String?) {
+                override fun onStreamLogInfo(winID: Int, ctx: String?, logMessage: String?) {
+                    super.onStreamLogInfo(winID, ctx, logMessage)
                     Log.d(TAG, ">>> CALLBACK: onStreamLogInfo - $logMessage")
                 }
 
-                override fun onConnectInfoConfig(winID: Int, context: String?, requestId: String?, ip: String?, localPort: Int, remotePort: Int) {
-                    Log.d(TAG, ">>> CALLBACK: onConnectInfoConfig")
-                    Log.d(TAG, "  - requestId: $requestId")
-                    Log.d(TAG, "  - ip: $ip")
-                    Log.d(TAG, "  - localPort: $localPort, remotePort: $remotePort")
-                }
-
-                override fun onStreamCallback(winID: Int, context: String?, data: ByteArray?, len: Int) {
-                    // Stream data callback - too verbose
-                }
-
-                override fun onProgressStatus(winID: Int, context: String?, logMessage: String?) {
+                override fun onProgressStatus(winID: Int, ctx: String?, logMessage: String?) {
+                    super.onProgressStatus(winID, ctx, logMessage)
                     Log.d(TAG, ">>> CALLBACK: onProgressStatus - $logMessage")
                 }
 
                 override fun onIVSInfo(winID: Int, ivsDirection: Int) {
+                    super.onIVSInfo(winID, ivsDirection)
                     Log.d(TAG, ">>> CALLBACK: onIVSInfo - direction=$ivsDirection")
                 }
 
-                override fun onAssistFrameInfo(winID: Int, context: String) {
-                    Log.d(TAG, ">>> CALLBACK: onAssistFrameInfo - context=$context")
+                override fun onAssistFrameInfo(winID: Int, ctx: String) {
+                    super.onAssistFrameInfo(winID, ctx)
+                    Log.d(TAG, ">>> CALLBACK: onAssistFrameInfo")
+                }
+
+                override fun onConnectInfoConfig(winID: Int, ctx: String?, requestId: String?, ip: String?, localPort: Int, remotePort: Int) {
+                    super.onConnectInfoConfig(winID, ctx, requestId, ip, localPort, remotePort)
+                    Log.d(TAG, ">>> CALLBACK: onConnectInfoConfig - ip=$ip")
+                }
+
+                override fun onStreamCallback(winID: Int, ctx: String?, data: ByteArray?, len: Int) {
+                    super.onStreamCallback(winID, ctx, data, len)
                 }
             })
             Log.d(TAG, "[STEP 3] PlayRealListener set")
 
             // STEP 4: Prepare parameters
             Log.d(TAG, "[STEP 4] Preparing LCOpenSDK_ParamReal...")
-            // productId из API (может быть пустым - это нормально, как в демо проекте)
-            val productId = this.productId
-            val psk = if (this.password.isNotEmpty()) this.password else this.deviceId
+            val psk = if (password.isNotEmpty()) password else deviceId
 
-            Log.d(TAG, "  Parameters for LCOpenSDK_ParamReal:")
-            Log.d(TAG, "    1. accessToken: ${this.accessToken.take(30)}...")
-            Log.d(TAG, "    2. deviceID: ${this.deviceId}")
-            Log.d(TAG, "    3. channelId: ${this.channelId}")
-            Log.d(TAG, "    4. psk: $psk")
-            Log.d(TAG, "    5. playToken: ${if (this.playToken.isEmpty()) "EMPTY" else "${this.playToken.take(30)}..."}")
-            Log.d(TAG, "    6. bateMode (streamType): ${this.streamType}")
-            Log.d(TAG, "    7. isOpt: true")
-            Log.d(TAG, "    8. isOpenAudio: false")
-            Log.d(TAG, "    9. imageSize: -1")
-            Log.d(TAG, "   10. productId: $productId")
+            Log.d(TAG, "  Parameters:")
+            Log.d(TAG, "    accessToken: ${accessToken.take(30)}...")
+            Log.d(TAG, "    deviceID: $deviceId")
+            Log.d(TAG, "    channelId: $channelId")
+            Log.d(TAG, "    psk: $psk")
+            Log.d(TAG, "    playToken: ${if (playToken.isEmpty()) "EMPTY" else "${playToken.take(30)}..."}")
+            Log.d(TAG, "    streamType: $streamType (0=HD, 1=SD)")
+            Log.d(TAG, "    isOpt: true, isOpenAudio: true")
+            Log.d(TAG, "    productId: $productId")
 
             val paramReal = LCOpenSDK_ParamReal(
-                this.accessToken,
-                this.deviceId,
-                this.channelId,
+                accessToken,
+                deviceId,
+                channelId,
                 psk,
-                this.playToken,
-                this.streamType,
-                true,
-                false,
-                -1,
+                playToken,
+                streamType,
+                true,   // isOpt
+                true,   // isOpenAudio
+                -1,     // imageSize
                 productId
             )
             Log.d(TAG, "[STEP 4] LCOpenSDK_ParamReal created")
 
             // STEP 5: Start playback
             Log.d(TAG, "[STEP 5] Calling playRtspReal(paramReal)...")
-            Log.d(TAG, "  playWindow is null: ${playWindow == null}")
             val startTime = System.currentTimeMillis()
             playWindow?.playRtspReal(paramReal)
             val elapsed = System.currentTimeMillis() - startTime
             Log.d(TAG, "[STEP 5] playRtspReal() returned after ${elapsed}ms")
-            Log.d(TAG, "========== startPreview() COMPLETED (waiting for callbacks) ==========")
+            Log.d(TAG, "========== startPreview() COMPLETED ==========")
 
         } catch (e: Exception) {
-            Log.e(TAG, "========== startPreview() EXCEPTION ==========")
-            Log.e(TAG, "Exception type: ${e.javaClass.name}")
-            Log.e(TAG, "Exception message: ${e.message}")
-            Log.e(TAG, "Stack trace:", e)
+            Log.e(TAG, "startPreview() EXCEPTION: ${e.message}", e)
             sendEvent("onError", Arguments.createMap().apply {
                 putString("error", e.message ?: "Unknown error")
             })
@@ -264,11 +292,14 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
     fun release() {
         try {
             stopPreview()
-            playWindow?.uninitPlayWindow()
+            if (isInitialized) {
+                playWindow?.uninitPlayWindow()
+                isInitialized = false
+            }
             playWindow = null
             Log.d(TAG, "Resources released")
         } catch (e: Exception) {
-            Log.e(TAG, "Error releasing resources: ${e.message}")
+            Log.e(TAG, "Error releasing: ${e.message}")
         }
     }
 
