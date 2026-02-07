@@ -73,6 +73,10 @@ export async function fetchDeviceList(
 
   if (data.result.code === '0' && data.result.data) {
     const deviceList = data.result.data.deviceList || [];
+    // Логируем сырые данные для отладки productId
+    if (deviceList.length > 0) {
+      console.log('[IMOU-SDK] First device raw data:', JSON.stringify(deviceList[0], null, 2));
+    }
 
     const devices: ImouDevice[] = deviceList.map((d: any) => ({
       deviceId: d.deviceId,

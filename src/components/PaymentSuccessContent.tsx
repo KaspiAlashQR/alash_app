@@ -31,72 +31,79 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
   showUnlockInstruction,
 }) => {
   const [isBlinking, setIsBlinking] = useState(true);
-  
-  // IMOU Camera State
+
   const [imouCameraReady, setImouCameraReady] = useState(false);
   const [imouDeviceId, setImouDeviceId] = useState<string>('');
-  const [imouPassword, setImouPassword] = useState<string>('');
   const [imouAccessToken, setImouAccessToken] = useState<string>('');
   const [imouPlayToken, setImouPlayToken] = useState<string>('');
+  const [imouProductId, setImouProductId] = useState<string | undefined>(undefined);
   const [imouError, setImouError] = useState<string | null>(null);
   const imouCameraRef = useRef<ImouCameraViewRef>(null);
 
-  // Инициализация IMOU камеры
   useEffect(() => {
     const initImouCamera = async () => {
-      console.log('[IMOU] ====== Starting camera initialization ======');
       try {
-        // Получаем настройки камеры из хранилища
-        console.log('[IMOU] Step 1: Getting camera settings from storage...');
         const cameraSettings = await deviceStorage.getCameraSettings();
-        console.log('[IMOU] Camera settings result:', JSON.stringify(cameraSettings, null, 2));
-        
         if (!cameraSettings?.deviceId) {
-          console.log('[IMOU] ERROR: No deviceId in camera settings');
           setImouError('Камера не настроена');
           return;
         }
 
-        const deviceId = cameraSettings.deviceId;
-        const password = cameraSettings.password ?? cameraSettings.deviceId;
-        setImouDeviceId(deviceId);
-        setImouPassword(password);
-        console.log('[IMOU] Step 2: Device ID set:', deviceId, 'Password:', password ? 'SET' : 'USING_DEVICE_ID');
+        setImouDeviceId(cameraSettings.deviceId);
 
-        console.log('[IMOU] Step 3: Getting local access_token...');
-        const localAccessToken = await imouSDK.getAccessToken();
-        console.log('[IMOU] Local access_token obtained:', localAccessToken.substring(0, 20) + '...');
+        await imouSDK.initialize();
 
-        console.log('[IMOU] Step 4: Initializing SDK with local access_token...');
-        try {
-          const sdkResult = await imouSDK.initSDK(localAccessToken);
-          console.log('[IMOU] SDK initSDK result:', sdkResult);
-        } catch (sdkError: any) {
-          console.error('[IMOU] SDK initSDK ERROR:', sdkError?.message || sdkError);
+        if (!imouSDK.isSubAccountLoggedIn()) {
+          const deviceInfo = await deviceStorage.getDeviceInfo();
+          if (deviceInfo?.email) {
+            await imouSDK.loginSubAccount(deviceInfo.email);
+          }
         }
 
-        console.log('[IMOU] Step 5: Getting local kit_token...');
-        const kitTokenData = await imouSDK.getKitToken(deviceId, '0', '0');
-        console.log('[IMOU] Local kit_token obtained:', kitTokenData.kitToken.substring(0, 30) + '...');
+        if (!imouSDK.isSubAccountLoggedIn()) {
+          setImouError('Необходимо войти в аккаунт IMOU');
+          return;
+        }
 
-        setImouAccessToken(localAccessToken);
-        setImouPlayToken(kitTokenData.kitToken);
-        setImouCameraReady(true);
-        console.log('[IMOU] ====== Camera initialization SUCCESS (local SDK only) ======');
+        const token = imouSDK.getStoredSubAccessToken();
+        if (!token) {
+          setImouError('Токен не найден');
+          return;
+        }
+        setImouAccessToken(token);
+
+        if (cameraSettings.playToken) {
+          setImouPlayToken(cameraSettings.playToken);
+          if (cameraSettings.productId) {
+            setImouProductId(cameraSettings.productId);
+          }
+          setImouCameraReady(true);
+        } else {
+          const { devices } = await imouSDK.getDeviceList(1, 50);
+          const device = devices.find(d => d.deviceId === cameraSettings.deviceId);
+          if (device?.playToken) {
+            setImouPlayToken(device.playToken);
+            if (device.productId) {
+              setImouProductId(device.productId);
+            }
+            setImouCameraReady(true);
+            await deviceStorage.saveCameraSettings({
+              ...cameraSettings,
+              playToken: device.playToken,
+              productId: device.productId,
+            });
+          } else {
+            setImouError('Нет playToken. Обновите список устройств.');
+          }
+        }
       } catch (error: any) {
-        console.error('[IMOU] ====== Camera initialization FAILED ======');
-        console.error('[IMOU] Error type:', typeof error);
-        console.error('[IMOU] Error message:', error?.message);
-        console.error('[IMOU] Error stack:', error?.stack);
-        console.error('[IMOU] Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
-        setImouError(`Ошибка: ${error?.message || 'Неизвестная ошибка'}`);
+        setImouError(error?.message || 'Ошибка инициализации');
       }
     };
 
     initImouCamera();
 
     return () => {
-      // Остановить стрим при размонтировании
       if (imouCameraRef.current) {
         imouCameraRef.current.stopPreview();
       }
@@ -188,15 +195,12 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
                 channelId={0}
                 accessToken={imouAccessToken}
                 playToken={imouPlayToken}
-                password={imouPassword}
-                streamType={1} // SD stream для экономии ресурсов
+                productId={imouProductId}
+                streamType={0}
                 autoPlay={true}
-                onPlayStart={() => console.log('IMOU Camera: playback started')}
-                onPlayStop={() => console.log('IMOU Camera: playback stopped')}
-                onError={(error) => {
-                  console.error('IMOU Camera error:', error);
-                  setImouError(error.error);
-                }}
+                onPlayStart={() => {}}
+                onPlayStop={() => {}}
+                onError={(error) => setImouError(error.error)}
               />
             ) : (
               <View style={styles.cameraPlaceholder}>

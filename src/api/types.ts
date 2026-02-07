@@ -306,5 +306,7 @@ export interface BatchProductsDetailResponse {
 export interface CameraSettings {
   deviceId: string; // Серийный номер камеры (до 20 символов)
   password: string; // Код камеры (ключ шифрования видео)
+  playToken?: string; // Play token из device list API (обходит ошибку SUB1000)
+  productId?: string; // Product ID камеры для SDK
 }
 
