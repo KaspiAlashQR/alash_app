@@ -16,6 +16,7 @@ import { reduceStockFIFO } from '../api/stock';
 import { deviceStorage } from '../api/storage';
 import { CartItem } from '../api/types';
 import PaymentSuccessContent from '../components/PaymentSuccessContent';
+import imouSDK from '../../Imou/typescript/imou';
 
 type PaymentScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Payment'>;
 type PaymentScreenRouteProp = RouteProp<RootStackParamList, 'Payment'>;
@@ -71,6 +72,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   const backgroundMusicRef = useRef<Sound | null>(null);
   const musicIntervalRef = useRef<number | null>(null);
   const unlockInstructionTimeoutRef = useRef<number | null>(null);
+  const transitionTimeoutRef = useRef<number | null>(null);
 
   const [isCameraActive, setIsCameraActive] = useState(false);
   const { hasPermission, requestPermission } = useCameraPermission();
@@ -118,16 +120,22 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
 
         if (response === true) {
           clearAll();
-          setShowUnlockInstruction(true);
-          setPaymentSuccess(true);
-          playUnlockSignal();
-          unlockInstructionTimeoutRef.current = setTimeout(() => {
+
+          imouSDK.initialize().then(async () => {
+            if (!imouSDK.isSubAccountLoggedIn()) {
+              const deviceInfo = await deviceStorage.getDeviceInfo();
+              if (deviceInfo?.email) {
+                await imouSDK.loginSubAccount(deviceInfo.email);
+              }
+            }
+          }).catch(() => {});
+
+          transitionTimeoutRef.current = setTimeout(() => {
             if (!mountedRef.current) return;
-            setShowUnlockInstruction(false);
-            startUnlockTimer();
-            playSuccessSound();
-            startBackgroundMusic();
+            setShowUnlockInstruction(true);
+            setPaymentSuccess(true);
           }, 5000) as unknown as number;
+
           (async () => {
             const resp = await updateOrder(internalOrderId, { status: 'paid' });
             console.log('updateOrder(paid) response:', JSON.stringify(resp));
@@ -180,6 +188,10 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
         clearTimeout(unlockInstructionTimeoutRef.current as any);
         unlockInstructionTimeoutRef.current = null;
       }
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current as any);
+        transitionTimeoutRef.current = null;
+      }
     };
 
     function clearAll() {
@@ -222,16 +234,29 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
     console.log('Камера выключена');
   };
 
-  const playUnlockSignal = () => {
+  const handleCameraCallback = async () => {
+    if (!mountedRef.current) return;
+    setShowUnlockInstruction(false);
+    startUnlockTimer();
+    try {
+      await playUnlockSignal();
+    } catch {}
+    if (!mountedRef.current) return;
+    try {
+      playSuccessSound();
+    } catch {}
+  };
+
+  const playUnlockSignal = async (): Promise<void> => {
     startCamera();
     if (NativeModules.AuxModule && NativeModules.AuxModule.playUnlockSignal) {
-      NativeModules.AuxModule.playUnlockSignal();
-      setSignalSent(true);
-    } else {
-      console.log('AuxModule не подключён');
-      setSignalSent(false);
+      try {
+        await NativeModules.AuxModule.playUnlockSignal();
+        setSignalSent(true);
+      } catch {
+        setSignalSent(false);
+      }
     }
-    
   };
 
 
@@ -379,11 +404,9 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
           unlockTimer={unlockTimer}
           cartItems={savedCartItems}
           totalAmount={paymentAmount}
-          // Закомментировано - пропсы фронтальной камеры
-          // frontCamera={frontCamera}
-          // hasPermission={hasPermission || false}
-          // isCameraActive={isCameraActive}
           showUnlockInstruction={showUnlockInstruction}
+          onCameraReady={handleCameraCallback}
+          onCameraFailed={handleCameraCallback}
         />
       )}
     </SafeAreaView>

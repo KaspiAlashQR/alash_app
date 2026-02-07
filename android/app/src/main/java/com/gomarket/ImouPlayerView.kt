@@ -255,7 +255,7 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
                 playToken,
                 streamType,
                 true,   // isOpt
-                true,   // isOpenAudio
+                false,  // isOpenAudio
                 -1,     // imageSize
                 productId
             )

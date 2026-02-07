@@ -10,11 +10,9 @@ interface PaymentSuccessContentProps {
   unlockTimer: number;
   cartItems: CartItem[];
   totalAmount: number;
-  // Закомментировано - пропсы фронтальной камеры
-  // frontCamera: CameraDevice | undefined;
-  // hasPermission: boolean;
-  // isCameraActive: boolean;
   showUnlockInstruction?: boolean;
+  onCameraReady?: () => void;
+  onCameraFailed?: () => void;
 }
 
 const { width } = Dimensions.get('window');
@@ -24,11 +22,9 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
   unlockTimer,
   cartItems,
   totalAmount,
-  // Закомментировано - пропсы фронтальной камеры
-  // frontCamera,
-  // hasPermission,
-  // isCameraActive,
   showUnlockInstruction,
+  onCameraReady,
+  onCameraFailed,
 }) => {
   const [isBlinking, setIsBlinking] = useState(true);
 
@@ -39,6 +35,7 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
   const [imouProductId, setImouProductId] = useState<string | undefined>(undefined);
   const [imouError, setImouError] = useState<string | null>(null);
   const imouCameraRef = useRef<ImouCameraViewRef>(null);
+  const cameraCallbackFired = useRef(false);
 
   useEffect(() => {
     const initImouCamera = async () => {
@@ -46,6 +43,7 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
         const cameraSettings = await deviceStorage.getCameraSettings();
         if (!cameraSettings?.deviceId) {
           setImouError('Камера не настроена');
+          onCameraFailed?.();
           return;
         }
 
@@ -62,12 +60,14 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
 
         if (!imouSDK.isSubAccountLoggedIn()) {
           setImouError('Необходимо войти в аккаунт IMOU');
+          onCameraFailed?.();
           return;
         }
 
         const token = imouSDK.getStoredSubAccessToken();
         if (!token) {
           setImouError('Токен не найден');
+          onCameraFailed?.();
           return;
         }
         setImouAccessToken(token);
@@ -94,10 +94,12 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
             });
           } else {
             setImouError('Нет playToken. Обновите список устройств.');
+            onCameraFailed?.();
           }
         }
       } catch (error: any) {
         setImouError(error?.message || 'Ошибка инициализации');
+        onCameraFailed?.();
       }
     };
 
@@ -110,11 +112,11 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
     };
   }, []);
 
-  // Мигание для текста "Дверь открыта"
+  
   useEffect(() => {
     const blinkInterval = setInterval(() => {
       setIsBlinking((prev) => !prev);
-    }, 500); // Мигание каждые 500ms
+    }, 500); 
 
     return () => clearInterval(blinkInterval);
   }, []);
@@ -198,9 +200,20 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
                 productId={imouProductId}
                 streamType={0}
                 autoPlay={true}
-                onPlayStart={() => {}}
+                onPlayStart={() => {
+                  if (!cameraCallbackFired.current) {
+                    cameraCallbackFired.current = true;
+                    onCameraReady?.();
+                  }
+                }}
                 onPlayStop={() => {}}
-                onError={(error) => setImouError(error.error)}
+                onError={(error) => {
+                  setImouError(error.error || 'Ошибка соединения');
+                  if (!cameraCallbackFired.current) {
+                    cameraCallbackFired.current = true;
+                    onCameraFailed?.();
+                  }
+                }}
               />
             ) : (
               <View style={styles.cameraPlaceholder}>
