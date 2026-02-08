@@ -29,11 +29,16 @@ interface ImouCameraViewProps {
   onPlayStop?: () => void;
   onError?: (error: { code?: number; error: string }) => void;
   onResolutionChanged?: (resolution: { width: number; height: number }) => void;
+  onRecordStart?: (event: { filePath: string }) => void;
+  onRecordStop?: (event: { filePath: string }) => void;
+  onRecordError?: (event: { error: string }) => void;
 }
 
 export interface ImouCameraViewRef {
   startPreview: () => void;
   stopPreview: () => void;
+  startRecord: (orderId: string) => void;
+  stopRecord: () => void;
 }
 
 const COMPONENT_NAME = 'ImouPlayerView';
@@ -59,12 +64,15 @@ const ImouCameraView = forwardRef<ImouCameraViewRef, ImouCameraViewProps>(
       onPlayStop,
       onError,
       onResolutionChanged,
+      onRecordStart,
+      onRecordStop,
+      onRecordError,
     },
     ref
   ) => {
     const nativeRef = useRef<any>(null);
 
-    const dispatchCommand = (command: string) => {
+    const dispatchCommand = (command: string, args: any[] = []) => {
       if (Platform.OS !== 'android') {
         console.warn('ImouCameraView is only supported on Android');
         return;
@@ -75,7 +83,7 @@ const ImouCameraView = forwardRef<ImouCameraViewRef, ImouCameraViewProps>(
         const commands = UIManager.getViewManagerConfig(COMPONENT_NAME)?.Commands;
         const commandId = commands?.[command];
         if (commandId !== undefined) {
-          UIManager.dispatchViewManagerCommand(node, commandId, []);
+          UIManager.dispatchViewManagerCommand(node, commandId, args);
         }
       }
     };
@@ -83,6 +91,8 @@ const ImouCameraView = forwardRef<ImouCameraViewRef, ImouCameraViewProps>(
     useImperativeHandle(ref, () => ({
       startPreview: () => dispatchCommand('startPreview'),
       stopPreview: () => dispatchCommand('stopPreview'),
+      startRecord: (orderId: string) => dispatchCommand('startRecord', [orderId]),
+      stopRecord: () => dispatchCommand('stopRecord'),
     }));
 
     useEffect(() => {
@@ -116,6 +126,9 @@ const ImouCameraView = forwardRef<ImouCameraViewRef, ImouCameraViewProps>(
         onPlayStop={onPlayStop}
         onError={(event: any) => onError?.(event.nativeEvent)}
         onResolutionChanged={(event: any) => onResolutionChanged?.(event.nativeEvent)}
+        onRecordStart={(event: any) => onRecordStart?.(event.nativeEvent)}
+        onRecordStop={(event: any) => onRecordStop?.(event.nativeEvent)}
+        onRecordError={(event: any) => onRecordError?.(event.nativeEvent)}
       />
     );
   }

@@ -5,11 +5,13 @@ import { CartItem } from '../api/types';
 import { deviceStorage } from '../api/storage';
 import { imouSDK, ImouCameraView } from '../../Imou/typescript/imou';
 import type { ImouCameraViewRef } from '../../Imou/typescript/imou';
+import { addPendingRecording, processUploadQueue } from '../services/recordingQueue';
 
 interface PaymentSuccessContentProps {
   unlockTimer: number;
   cartItems: CartItem[];
   totalAmount: number;
+  recordOrderId: number;
   showUnlockInstruction?: boolean;
   onCameraReady?: () => void;
   onCameraFailed?: () => void;
@@ -22,6 +24,7 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
   unlockTimer,
   cartItems,
   totalAmount,
+  recordOrderId,
   showUnlockInstruction,
   onCameraReady,
   onCameraFailed,
@@ -36,6 +39,7 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
   const [imouError, setImouError] = useState<string | null>(null);
   const imouCameraRef = useRef<ImouCameraViewRef>(null);
   const cameraCallbackFired = useRef(false);
+  const recordStartedRef = useRef(false);
 
   useEffect(() => {
     const initImouCamera = async () => {
@@ -106,9 +110,17 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
     initImouCamera();
 
     return () => {
+      if (recordStartedRef.current) {
+        imouCameraRef.current?.stopRecord();
+        recordStartedRef.current = false;
+      }
       if (imouCameraRef.current) {
         imouCameraRef.current.stopPreview();
       }
+      // Upload any pending recordings on unmount
+      processUploadQueue().catch(e =>
+        console.error('Upload queue error on unmount:', e),
+      );
     };
   }, []);
 
@@ -205,8 +217,37 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
                     cameraCallbackFired.current = true;
                     onCameraReady?.();
                   }
+                  if (!recordStartedRef.current) {
+                    recordStartedRef.current = true;
+                    imouCameraRef.current?.startRecord(String(recordOrderId));
+                  }
                 }}
-                onPlayStop={() => {}}
+                onPlayStop={() => {
+                  if (recordStartedRef.current) {
+                    imouCameraRef.current?.stopRecord();
+                    recordStartedRef.current = false;
+                  }
+                }}
+                onRecordStart={async ({ filePath }) => {
+                  try {
+                    await addPendingRecording({
+                      orderId: recordOrderId,
+                      filePath,
+                      createdAt: new Date().toISOString(),
+                      uploaded: false,
+                    });
+                  } catch (e) {
+                    console.error('recordingQueue add error:', e);
+                  }
+                }}
+                onRecordStop={() => {
+                  processUploadQueue().catch(e =>
+                    console.error('Upload queue error:', e),
+                  );
+                }}
+                onRecordError={({ error }) => {
+                  console.error('Imou record error:', error);
+                }}
                 onError={(error) => {
                   setImouError(error.error || 'Ошибка соединения');
                   if (!cameraCallbackFired.current) {

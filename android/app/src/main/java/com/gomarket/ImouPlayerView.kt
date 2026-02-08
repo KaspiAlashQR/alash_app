@@ -2,7 +2,6 @@ package com.gomarket
 
 import android.content.Context
 import android.util.Log
-import android.view.SurfaceView
 import android.widget.FrameLayout
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
@@ -11,6 +10,7 @@ import com.facebook.react.uimanager.events.RCTEventEmitter
 import com.lechange.opensdk.media.LCOpenSDK_ParamReal
 import com.lechange.opensdk.media.realtime.LCOpenSDK_PlayRealWindow
 import com.lechange.opensdk.media.realtime.listener.LCOpenSDK_PlayRealListener
+import java.io.File
 
 class ImouPlayerView(context: Context) : FrameLayout(context) {
 
@@ -21,6 +21,8 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
     private var playWindow: LCOpenSDK_PlayRealWindow? = null
     private var isPlaying = false
     private var isInitialized = false
+    private var isRecording = false
+    private var recordFilePath: String? = null
 
     // Camera parameters
     private var deviceId: String = ""
@@ -279,6 +281,7 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
 
     fun stopPreview() {
         try {
+            stopRecord()
             if (isPlaying) {
                 playWindow?.stopRtspReal(true)
                 isPlaying = false
@@ -286,6 +289,91 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping preview: ${e.message}")
+        }
+    }
+
+    fun startRecord(orderId: String): Boolean {
+        if (!isPlaying) {
+            Log.w(TAG, "startRecord aborted: preview not playing")
+            sendEvent("onRecordError", Arguments.createMap().apply {
+                putString("error", "Preview not playing")
+            })
+            return false
+        }
+
+        if (orderId.isBlank()) {
+            Log.w(TAG, "startRecord aborted: orderId is empty")
+            sendEvent("onRecordError", Arguments.createMap().apply {
+                putString("error", "OrderId is empty")
+            })
+            return false
+        }
+
+        if (isRecording) {
+            Log.w(TAG, "startRecord ignored: already recording")
+            return true
+        }
+
+        return try {
+            val recordsDir = File(context.getExternalFilesDir(null), "imou_records")
+            if (!recordsDir.exists()) {
+                recordsDir.mkdirs()
+            }
+            Log.d(TAG, "Record dir: ${recordsDir.absolutePath}, exists=${recordsDir.exists()}, writable=${recordsDir.canWrite()}")
+            val fileName = "${orderId}.mp4"
+            val file = File(recordsDir, fileName)
+            recordFilePath = file.absolutePath
+
+            val path = recordFilePath ?: return false
+            val ret = playWindow?.startRecord(path, 1, 0x7FFFFFFF) == true
+            if (ret) {
+                isRecording = true
+                sendEvent("onRecordStart", Arguments.createMap().apply {
+                    putString("filePath", recordFilePath)
+                })
+                Log.d(TAG, "Record started: $recordFilePath")
+            } else {
+                recordFilePath = null
+                sendEvent("onRecordError", Arguments.createMap().apply {
+                    putString("error", "startRecord failed")
+                })
+            }
+            ret
+        } catch (e: Exception) {
+            Log.e(TAG, "startRecord exception: ${e.message}", e)
+            sendEvent("onRecordError", Arguments.createMap().apply {
+                putString("error", e.message ?: "startRecord error")
+            })
+            false
+        }
+    }
+
+    fun stopRecord(): Boolean {
+        if (!isRecording) {
+            return true
+        }
+        return try {
+            val ret = playWindow?.stopRecord() == true
+            if (ret) {
+                sendEvent("onRecordStop", Arguments.createMap().apply {
+                    putString("filePath", recordFilePath ?: "")
+                })
+            } else {
+                sendEvent("onRecordError", Arguments.createMap().apply {
+                    putString("error", "stopRecord failed")
+                })
+            }
+            isRecording = false
+            recordFilePath = null
+            ret
+        } catch (e: Exception) {
+            Log.e(TAG, "stopRecord exception: ${e.message}", e)
+            sendEvent("onRecordError", Arguments.createMap().apply {
+                putString("error", e.message ?: "stopRecord error")
+            })
+            isRecording = false
+            recordFilePath = null
+            false
         }
     }
 

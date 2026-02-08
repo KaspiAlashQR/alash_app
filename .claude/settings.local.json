@@ -9,7 +9,8 @@
       "Bash(find:*)",
       "Bash(Get-ChildItem -Path \"d:\\\\Workspace\\\\alash_app\\\\android\\\\app\\\\src\\\\main\\\\java\" -Filter \"*.java\" -Recurse)",
       "Bash(Select-Object FullName)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(python:*)"
     ]
   }
 }

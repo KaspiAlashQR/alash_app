@@ -404,6 +404,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
           unlockTimer={unlockTimer}
           cartItems={savedCartItems}
           totalAmount={paymentAmount}
+          recordOrderId={internalOrderId || orderId}
           showUnlockInstruction={showUnlockInstruction}
           onCameraReady={handleCameraCallback}
           onCameraFailed={handleCameraCallback}

@@ -146,6 +146,7 @@ export interface GoOrderResponse {
 export interface GoOrderUpdateFields {
   status?: 'pending' | 'paid' | 'cancelled';
   product_name?: any;
+  url?: string;
 }
 
 export interface AssignProductItem {

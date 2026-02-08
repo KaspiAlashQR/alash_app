@@ -14,6 +14,8 @@ class ImouPlayerViewManager : SimpleViewManager<ImouPlayerView>() {
         // Commands
         const val COMMAND_START_PREVIEW = 1
         const val COMMAND_STOP_PREVIEW = 2
+        const val COMMAND_START_RECORD = 3
+        const val COMMAND_STOP_RECORD = 4
     }
 
     override fun getName(): String = REACT_CLASS
@@ -71,13 +73,18 @@ class ImouPlayerViewManager : SimpleViewManager<ImouPlayerView>() {
             .put("onPlayStop", MapBuilder.of("registrationName", "onPlayStop"))
             .put("onError", MapBuilder.of("registrationName", "onError"))
             .put("onResolutionChanged", MapBuilder.of("registrationName", "onResolutionChanged"))
+            .put("onRecordStart", MapBuilder.of("registrationName", "onRecordStart"))
+            .put("onRecordStop", MapBuilder.of("registrationName", "onRecordStop"))
+            .put("onRecordError", MapBuilder.of("registrationName", "onRecordError"))
             .build()
     }
 
     override fun getCommandsMap(): Map<String, Int>? {
         return MapBuilder.of(
             "startPreview", COMMAND_START_PREVIEW,
-            "stopPreview", COMMAND_STOP_PREVIEW
+            "stopPreview", COMMAND_STOP_PREVIEW,
+            "startRecord", COMMAND_START_RECORD,
+            "stopRecord", COMMAND_STOP_RECORD
         )
     }
 
@@ -85,6 +92,15 @@ class ImouPlayerViewManager : SimpleViewManager<ImouPlayerView>() {
         when (commandId) {
             COMMAND_START_PREVIEW -> view.startPreview()
             COMMAND_STOP_PREVIEW -> view.stopPreview()
+            COMMAND_START_RECORD -> {
+                val orderId = if (args != null && args.size() > 0) args.getString(0) else null
+                if (!orderId.isNullOrEmpty()) {
+                    view.startRecord(orderId)
+                } else {
+                    view.startRecord("")
+                }
+            }
+            COMMAND_STOP_RECORD -> view.stopRecord()
         }
     }
 

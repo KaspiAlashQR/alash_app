@@ -17,7 +17,8 @@ interface AuthScreenProps {
   navigation: AuthScreenNavigationProp;
 }
 
-const CORRECT_PIN = '202501';
+const ADMIN_PIN = '202501';
+const IMOU_PIN = '784512';
 const { width } = Dimensions.get('window');
 const isTablet = width > 600;
 
@@ -44,7 +45,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
     setIsLoading(true);
 
     setTimeout(async () => {
-      if (pin === CORRECT_PIN) {
+      if (pin === (activeTab === 'admin' ? ADMIN_PIN : IMOU_PIN)) {
         try {
           if (Platform.OS === 'android') {
             await KioskModule.disableKioskMode();
