@@ -8,5 +8,6 @@ export const S3_CONFIG = {
   region: 'auto',
   accessKeyId: 'QHNGVGKAPUUP9ZDETDZ8',           
   secretAccessKey: 'ZWTkHaedvgFhi0wLTUaQmb7bTWsiOmqS17Lw5G1P',       
-  recordingsPrefix: 'recordings/',          
+  recordingsPrefix: 'recordings/',
+  logsPrefix: 'logs/',          
 };

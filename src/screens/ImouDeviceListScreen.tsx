@@ -15,6 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import imouSDK, { ImouDevice } from '../../Imou/typescript/imou';
+import { imouTokenService } from '../../Imou/typescript/imou.token-service';
 import { RootStackParamList } from '../utils/navigation.types';
 import { deviceStorage } from '../api/storage';
 
@@ -40,30 +41,25 @@ const ImouDeviceListScreen: React.FC<Props> = ({ navigation }) => {
   // Auto-login with stored email
   const autoLogin = useCallback(async () => {
     try {
-      // Check if already logged in
-      if (imouSDK.isSubAccountLoggedIn()) {
+      if (imouTokenService.isSubAccountReady()) {
         setIsLoggedIn(true);
-        setSubAccountEmail(imouSDK.getSubAccountEmail());
+        setSubAccountEmail(imouTokenService.getSubAccountEmail());
         return true;
       }
 
-      // Get email from device storage
       const deviceInfo = await deviceStorage.getDeviceInfo();
       const storedEmail = deviceInfo?.email;
 
       if (!storedEmail) {
-        console.log('[ImouDeviceList] No email configured in device storage');
         setNoEmailConfigured(true);
         return false;
       }
 
-      console.log('[ImouDeviceList] Auto-login with stored email:', storedEmail);
-      await imouSDK.loginSubAccount(storedEmail);
+      await imouTokenService.ensureReady(storedEmail);
       setIsLoggedIn(true);
       setSubAccountEmail(storedEmail);
       return true;
     } catch (error: any) {
-      console.error('[ImouDeviceList] Auto-login failed:', error?.message);
       Alert.alert('Ошибка входа', error?.message || 'Не удалось войти в IMOU');
       return false;
     }
@@ -73,10 +69,6 @@ const ImouDeviceListScreen: React.FC<Props> = ({ navigation }) => {
     try {
       setLoading(true);
 
-      // Initialize SDK first
-      await imouSDK.initialize();
-
-      // Try auto-login
       const loggedIn = await autoLogin();
       if (!loggedIn) {
         setLoading(false);

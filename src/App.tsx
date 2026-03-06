@@ -28,6 +28,9 @@ import ImouAddDeviceScreen from './screens/ImouAddDeviceScreen';
 
 // Utils
 import { KioskModule } from './utils/KioskModule';
+import { imouTokenService } from '../Imou/typescript/imou.token-service';
+import { deviceStorage } from './api/storage';
+import { startDiagnosticLogger } from './services/diagnosticLogger';
 
 // Types
 import { RootStackParamList } from './utils/navigation.types';
@@ -40,6 +43,8 @@ function App(): React.JSX.Element {
   const VERSION_KEY = 'APP_VERSION';
 
   useEffect(() => {
+    startDiagnosticLogger();
+
     // Проверка версии и очистка storage при обновлении
     const checkAndClearStorageOnUpdate = async () => {
       try {
@@ -67,6 +72,20 @@ function App(): React.JSX.Element {
     };
 
     enableKioskOnStart();
+
+    const initImou = async () => {
+      const deviceInfo = await deviceStorage.getDeviceInfo();
+      if (deviceInfo?.email) {
+        await imouTokenService.ensureReady(deviceInfo.email).catch(() => {});
+        imouTokenService.startAutoRefresh();
+      }
+    };
+
+    initImou();
+
+    return () => {
+      imouTokenService.stopAutoRefresh();
+    };
   }, []);
 
   return (

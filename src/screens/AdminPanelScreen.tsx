@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Sound from 'react-native-sound';
@@ -9,6 +9,19 @@ import InvoicesTab from '../components/admin/InvoicesTab';
 import { RootStackParamList } from '../utils/navigation.types';
 import { deviceStorage } from '../api/storage';
 import { CameraSettings } from '../api/types';
+import { imouSDK } from '../../Imou/typescript/imou';
+import { getLogStartTime, getLogCount } from '../services/diagnosticLogger';
+import { uploadDiagnostics } from '../services/diagnosticUpload';
+
+function formatLogStartTime(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const h = pad(date.getHours());
+  const m = pad(date.getMinutes());
+  const d = pad(date.getDate());
+  const mo = pad(date.getMonth() + 1);
+  const y = date.getFullYear();
+  return `${h}:${m} ${d}.${mo}.${y}`;
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -202,6 +215,73 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  diagButton: {
+    backgroundColor: '#6366f1',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: '#6366f1',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  diagButtonTablet: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  diagButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  diagModalInfo: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 16,
+  },
+  diagModalInfoText: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 22,
+  },
+  diagModalInfoBold: {
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  diagModalButtonSend: {
+    flex: 1,
+    backgroundColor: '#6366f1',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  diagModalButtonTextSend: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  flipButton: {
+    backgroundColor: '#8b5cf6',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  flipButtonDisabled: {
+    opacity: 0.6,
+  },
+  flipButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  flipStatusText: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
 });
 
 type AdminPanelScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'AdminPanel'>;
@@ -220,6 +300,12 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
   const [cameraPassword, setCameraPassword] = useState('');
   const [savedCameraId, setSavedCameraId] = useState<string | null>(null);
   const [savedCameraPassword, setSavedCameraPassword] = useState<string | null>(null);
+  const [flipLoading, setFlipLoading] = useState(false);
+  const [flipStatus, setFlipStatus] = useState<string | null>(null);
+  const [diagModalVisible, setDiagModalVisible] = useState(false);
+  const [diagLogStart, setDiagLogStart] = useState<Date | null>(null);
+  const [diagLogCount, setDiagLogCount] = useState(0);
+  const [diagUploading, setDiagUploading] = useState(false);
 
   useEffect(() => {
     loadCameraSettings();
@@ -254,6 +340,80 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
         unlockSound.release();
       });
     });
+  };
+
+  const loadFlipStatus = async (deviceId: string) => {
+    try {
+      setFlipLoading(true);
+      const direction = await imouSDK.getFrameReverseStatus(deviceId);
+      setFlipStatus(direction);
+    } catch (e: any) {
+      console.log('Failed to get flip status:', e?.message);
+      setFlipStatus(null);
+    } finally {
+      setFlipLoading(false);
+    }
+  };
+
+  const handleToggleFlip = async () => {
+    if (!savedCameraId) {
+      Alert.alert('Ошибка', 'Сначала сохраните настройки камеры');
+      return;
+    }
+    try {
+      setFlipLoading(true);
+      const newDirection = await imouSDK.toggleFrameReverse(savedCameraId);
+      setFlipStatus(newDirection);
+      Alert.alert('Успешно', `Камера ${newDirection === 'reverse' ? 'перевёрнута' : 'в нормальном положении'}`);
+    } catch (e: any) {
+      Alert.alert('Ошибка', `Не удалось изменить положение: ${e?.message}`);
+    } finally {
+      setFlipLoading(false);
+    }
+  };
+
+  const handleOpenDiag = () => {
+    try {
+      const logStart = getLogStartTime();
+      const logCount = getLogCount();
+      console.log('[Diag] logStart:', logStart, typeof logStart);
+      console.log('[Diag] logStart instanceof Date:', logStart instanceof Date);
+      console.log('[Diag] logCount:', logCount);
+      setDiagLogStart(logStart);
+      setDiagLogCount(logCount);
+      setDiagModalVisible(true);
+    } catch (e: any) {
+      console.error('[Diag] handleOpenDiag error:', e?.message, e?.stack);
+    }
+  };
+
+  const handleSendDiag = async () => {
+    try {
+      console.log('[Diag] handleSendDiag start');
+      const deviceInfo = await deviceStorage.getDeviceInfo();
+      console.log('[Diag] deviceInfo:', JSON.stringify(deviceInfo));
+      const machid = deviceInfo?.machid || 'unknown';
+      console.log('[Diag] machid:', machid);
+      setDiagUploading(true);
+      try {
+        console.log('[Diag] calling uploadDiagnostics...');
+        const result = await uploadDiagnostics(machid);
+        console.log('[Diag] uploadDiagnostics result:', JSON.stringify(result));
+        setDiagModalVisible(false);
+        if (result.success) {
+          Alert.alert('Успешно', 'Диагностика отправлена в хранилище');
+        } else {
+          Alert.alert('Ошибка', `Не удалось отправить: ${result.error}`);
+        }
+      } catch (e: any) {
+        console.error('[Diag] uploadDiagnostics exception:', e?.message, e?.stack);
+        Alert.alert('Ошибка', e?.message || 'Неизвестная ошибка');
+      } finally {
+        setDiagUploading(false);
+      }
+    } catch (e: any) {
+      console.error('[Diag] handleSendDiag outer exception:', e?.message, e?.stack);
+    }
   };
 
   const handleSaveCameraSettings = async () => {
@@ -295,7 +455,18 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
         </Text>
         <View style={styles.headerButtons}>
           <TouchableOpacity
-            onPress={() => setCameraModalVisible(true)}
+            onPress={handleOpenDiag}
+            style={[styles.diagButton, isTablet && styles.diagButtonTablet]}
+          >
+            <Text style={[styles.diagButtonText]}>Диагностика</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              setCameraModalVisible(true);
+              if (savedCameraId) {
+                loadFlipStatus(savedCameraId);
+              }
+            }}
             style={[styles.cameraButton, isTablet && styles.cameraButtonTablet]}
           >
             <Text style={[styles.cameraButtonText, isTablet && styles.cameraButtonTextTablet]}>
@@ -338,6 +509,62 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
         {activeTab === 'invoices' ? <InvoicesTab /> : <DistributeTab />}
       </View>
 
+      {/* Diagnostics Modal */}
+      <Modal
+        visible={diagModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDiagModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Диагностика</Text>
+            <View style={styles.diagModalInfo}>
+              <Text style={styles.diagModalInfoText}>
+                <Text style={styles.diagModalInfoBold}>Логи с: </Text>
+                {diagLogStart
+                  ? (() => {
+                      try {
+                        return formatLogStartTime(diagLogStart);
+                      } catch (e: any) {
+                        console.error('[Diag] formatLogStartTime error:', e?.message, 'diagLogStart:', diagLogStart, typeof diagLogStart);
+                        return String(diagLogStart);
+                      }
+                    })()
+                  : '—'}
+              </Text>
+              <Text style={styles.diagModalInfoText}>
+                <Text style={styles.diagModalInfoBold}>Записей: </Text>
+                {diagLogCount}
+              </Text>
+            </View>
+            <Text style={styles.modalHint}>
+              Логи JS-процесса приложения за последний час. Отправить в хранилище?
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalButtonCancel}
+                onPress={() => setDiagModalVisible(false)}
+                disabled={diagUploading}
+              >
+                <Text style={styles.modalButtonTextCancel}>Отмена</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.diagModalButtonSend, diagUploading && { opacity: 0.6 }]}
+                onPress={handleSendDiag}
+                disabled={diagUploading}
+              >
+                {diagUploading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.diagModalButtonTextSend}>Отправить</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Camera Settings Modal */}
       <Modal
         visible={cameraModalVisible}
@@ -370,6 +597,26 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
             <Text style={styles.modalHint}>
               Макс. 32 символа. {savedCameraPassword ? `Текущий: ${savedCameraPassword}` : 'Код не настроен'}
             </Text>
+            {savedCameraId && (
+              <TouchableOpacity
+                style={[styles.flipButton, flipLoading && styles.flipButtonDisabled]}
+                onPress={handleToggleFlip}
+                disabled={flipLoading}
+              >
+                {flipLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.flipButtonText}>
+                    {flipStatus === 'reverse' ? 'Вернуть в норму' : 'Перевернуть камеру'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
+            {flipStatus && (
+              <Text style={styles.flipStatusText}>
+                Текущее положение: {flipStatus === 'normal' ? 'Нормальное' : 'Перевёрнутое'}
+              </Text>
+            )}
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={styles.modalButtonCancel}

@@ -120,6 +120,96 @@ export async function uploadFileToS3(
   }
 }
 
+export async function uploadTextToS3(
+  filePath: string,
+  s3Key: string,
+  contentType: string = 'text/plain; charset=utf-8',
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  try {
+    const { bucket, endpoint, region, accessKeyId, secretAccessKey } = S3_CONFIG;
+
+    const exists = await ReactNativeBlobUtil.fs.exists(filePath);
+    if (!exists) {
+      return { success: false, error: `File not found: ${filePath}` };
+    }
+
+    const stat = await ReactNativeBlobUtil.fs.stat(filePath);
+    const fileSize = stat.size;
+
+    const fileContent = await ReactNativeBlobUtil.fs.readFile(filePath, 'utf8');
+    const contentHash = sha256(fileContent);
+
+    const now = new Date();
+    const { amzDate, dateStamp } = toAmzDate(now);
+
+    const host = `${bucket}.${endpoint}`;
+    const url = `https://${host}/${s3Key}`;
+    const method = 'PUT';
+    
+    const canonicalHeaders =
+      `content-type:${contentType}\n` +
+      `host:${host}\n` +
+      `x-amz-content-sha256:${contentHash}\n` +
+      `x-amz-date:${amzDate}\n`;
+
+    const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
+
+    const canonicalRequest = [
+      method,
+      '/' + s3Key,
+      '',
+      canonicalHeaders,
+      signedHeaders,
+      contentHash,
+    ].join('\n');
+
+    const credentialScope = `${dateStamp}/${region}/s3/aws4_request`;
+    const stringToSign = [
+      'AWS4-HMAC-SHA256',
+      amzDate,
+      credentialScope,
+      sha256(canonicalRequest),
+    ].join('\n');
+
+    const signingKey = getSigningKey(secretAccessKey, dateStamp, region, 's3');
+    const signature = hmacSha256Hex(signingKey, stringToSign);
+
+    const authorization =
+      `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, ` +
+      `SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+    console.log(`[S3] Uploading ${s3Key} (${fileSize} bytes) to ${bucket}`);
+
+    const response = await ReactNativeBlobUtil.fetch(
+      'PUT',
+      url,
+      {
+        'Content-Type': contentType,
+        'x-amz-content-sha256': contentHash,
+        'x-amz-date': amzDate,
+        Authorization: authorization,
+      },
+      fileContent,
+    );
+
+    const status = response.info().status;
+    console.log(`[S3] Upload response status: ${status}`);
+    
+    if (status >= 200 && status < 300) {
+      const publicUrl = `https://${bucket}.${endpoint}/${s3Key}`;
+      console.log(`[S3] Upload OK: ${s3Key} (${fileSize} bytes)`);
+      return { success: true, url: publicUrl };
+    } else {
+      const body = response.text();
+      console.error(`[S3] Upload failed (${status}): ${body}`);
+      return { success: false, error: `HTTP ${status}: ${body}` };
+    }
+  } catch (error: any) {
+    console.error('[S3] Upload exception:', error?.message || error);
+    return { success: false, error: error?.message || 'Upload failed' };
+  }
+}
+
 export async function deleteLocalFile(filePath: string): Promise<void> {
   try {
     const exists = await ReactNativeBlobUtil.fs.exists(filePath);

@@ -188,3 +188,22 @@ export interface DeviceInfoBeforeBindResponse {
     };
   };
 }
+
+export type FrameDirection = 'normal' | 'reverse';
+
+export interface FrameReverseStatusResponse {
+  result: {
+    code: string;
+    msg: string;
+    data?: {
+      direction: FrameDirection;
+    };
+  };
+}
+
+export interface ModifyFrameReverseResponse {
+  result: {
+    code: string;
+    msg: string;
+  };
+}

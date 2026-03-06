@@ -60,7 +60,7 @@ export async function fetchAccessToken(state: TokenState): Promise<{ token: stri
   if (data.result.code === '0' && data.result.data) {
     const newState: TokenState = {
       accessToken: data.result.data.accessToken,
-      tokenExpireTime: data.result.data.expireTime,
+      tokenExpireTime: currentTime + data.result.data.expireTime,
       currentDomain: data.result.data.currentDomain || state.currentDomain,
     };
     console.log('[IMOU-SDK] accessToken obtained successfully');

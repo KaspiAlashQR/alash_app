@@ -5,6 +5,9 @@ import type {
   BindDeviceResponse,
   UnbindDeviceResponse,
   DeviceInfoBeforeBindResponse,
+  FrameDirection,
+  FrameReverseStatusResponse,
+  ModifyFrameReverseResponse,
 } from './imou.types';
 
 export async function fetchKitToken(
@@ -38,7 +41,7 @@ export async function fetchKitToken(
   if (data.result.code === '0' && data.result.data) {
     return {
       kitToken: data.result.data.kitToken,
-      expireTime: data.result.data.expireTime,
+      expireTime: timestamp + data.result.data.expireTime,
     };
   }
 
@@ -203,4 +206,70 @@ export async function fetchDeviceInfoBeforeBind(
   }
 
   throw new Error(`Failed to get device info: ${data.result.msg} (code: ${data.result.code})`);
+}
+
+export async function fetchFrameReverseStatus(
+  deviceId: string,
+  channelId: string,
+  token: string,
+  currentDomain: string | null
+): Promise<FrameDirection> {
+  console.log('[IMOU-SDK] frameReverseStatus() - deviceId:', deviceId);
+
+  const timestamp = Math.floor(Date.now() / 1000);
+  const nonce = generateUUID();
+  const sign = generateSign(timestamp, nonce);
+  const baseUrl = getApiBaseUrl(currentDomain);
+
+  const response = await fetch(`${baseUrl}/openapi/frameReverseStatus`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(buildRequestBody(timestamp, nonce, sign, {
+      token,
+      deviceId,
+      channelId,
+    })),
+  });
+
+  const data: FrameReverseStatusResponse = await response.json();
+  console.log('[IMOU-SDK] frameReverseStatus response:', JSON.stringify(data, null, 2));
+
+  if (data.result.code === '0' && data.result.data) {
+    return data.result.data.direction;
+  }
+
+  throw new Error(`Failed to get frame reverse status: ${data.result.msg} (code: ${data.result.code})`);
+}
+
+export async function modifyFrameReverseStatus(
+  deviceId: string,
+  channelId: string,
+  direction: FrameDirection,
+  token: string,
+  currentDomain: string | null
+): Promise<void> {
+  console.log('[IMOU-SDK] modifyFrameReverseStatus() - deviceId:', deviceId, 'direction:', direction);
+
+  const timestamp = Math.floor(Date.now() / 1000);
+  const nonce = generateUUID();
+  const sign = generateSign(timestamp, nonce);
+  const baseUrl = getApiBaseUrl(currentDomain);
+
+  const response = await fetch(`${baseUrl}/openapi/modifyFrameReverseStatus`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(buildRequestBody(timestamp, nonce, sign, {
+      token,
+      deviceId,
+      channelId,
+      direction,
+    })),
+  });
+
+  const data: ModifyFrameReverseResponse = await response.json();
+  console.log('[IMOU-SDK] modifyFrameReverseStatus response:', JSON.stringify(data, null, 2));
+
+  if (data.result.code !== '0') {
+    throw new Error(`Failed to set frame reverse: ${data.result.msg} (code: ${data.result.code})`);
+  }
 }

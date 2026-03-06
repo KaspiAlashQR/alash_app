@@ -141,6 +141,8 @@ export interface GoOrderResponse {
   OK: boolean;
   id?: number;
   error?: string;
+  statusCode?: number;
+  subscription_status?: 'overdue' | 'blocked' | string;
 }
 
 export interface GoOrderUpdateFields {

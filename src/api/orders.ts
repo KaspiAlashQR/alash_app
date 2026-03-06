@@ -28,9 +28,17 @@ export async function createInternalOrder(order: GoOrderCreate): Promise<GoOrder
 
     if (!response.ok) {
       const errorText = await response.text();
+      let parsedError: any = null;
+      try {
+        parsedError = JSON.parse(errorText);
+      } catch {
+        parsedError = null;
+      }
       return {
         OK: false,
-        error: `HTTP ${response.status}: ${errorText || response.statusText}`
+        statusCode: response.status,
+        error: parsedError?.error || `HTTP ${response.status}: ${errorText || response.statusText}`,
+        subscription_status: parsedError?.subscription_status,
       };
     }
 

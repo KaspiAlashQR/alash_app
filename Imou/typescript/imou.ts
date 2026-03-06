@@ -1,19 +1,12 @@
 import { ImouModule, IMOU_LOG_LEVEL } from './imou.config';
-import { fetchAccessToken, TokenState } from './imou.api';
+import { addDevicePolicy } from './imou.subaccount';
 import {
-  createSubAccount,
-  getOpenIdByAccount,
-  fetchSubAccountToken,
-  addDevicePolicy,
-  SubAccountState,
-  createInitialSubAccountState,
-} from './imou.subaccount';
-import {
-  fetchKitToken,
   fetchDeviceList,
   bindDeviceToAccount,
   unbindDeviceFromAccount,
   fetchDeviceInfoBeforeBind,
+  fetchFrameReverseStatus,
+  modifyFrameReverseStatus,
 } from './imou.devices';
 import {
   fetchCurrentDeviceWifi,
@@ -29,26 +22,16 @@ import {
   getSoftApWifiList,
   startSoftApConfig,
 } from './imou.wifi';
-import type { ImouCredentials, ImouDevice, CurWifiInfo, WifiConfig, SoftApWifiItem } from './imou.types';
+import { imouTokenService } from './imou.token-service';
+import type { ImouCredentials, ImouDevice, CurWifiInfo, WifiConfig, SoftApWifiItem, FrameDirection } from './imou.types';
 
 export { IMOU_LOG_LEVEL } from './imou.config';
-export type { SoftApWifiItem, ImouDevice, CurWifiInfo, WifiConfig, WifiInfo } from './imou.types';
+export type { SoftApWifiItem, ImouDevice, CurWifiInfo, WifiConfig, WifiInfo, FrameDirection } from './imou.types';
 
 export class ImouSDK {
   private static instance: ImouSDK;
-  private initialized = false;
-  private tokenState: TokenState = {
-    accessToken: null,
-    tokenExpireTime: 0,
-    currentDomain: null,
-  };
-  private subState: SubAccountState = createInitialSubAccountState();
 
   private constructor() {}
-
-  getCurrentDomain(): string | null {
-    return this.tokenState.currentDomain;
-  }
 
   static getInstance(): ImouSDK {
     if (!ImouSDK.instance) {
@@ -57,129 +40,60 @@ export class ImouSDK {
     return ImouSDK.instance;
   }
 
+  getCurrentDomain(): string | null {
+    return imouTokenService.getCurrentDomain();
+  }
+
   async getAccessToken(): Promise<string> {
-    const result = await fetchAccessToken(this.tokenState);
-    this.tokenState = result.state;
-    return result.token;
+    return imouTokenService.getAdminToken();
   }
 
   async createSubAccount(account: string): Promise<string> {
-    const adminToken = await this.getAccessToken();
-    const result = await createSubAccount(account, adminToken, this.tokenState.currentDomain);
-    this.subState.openId = result.openId;
-    this.subState.subAccountEmail = result.email;
-    return result.openId;
+    await imouTokenService.getSubToken(account);
+    return imouTokenService.getStoredOpenId() ?? '';
   }
 
   async getOpenIdByAccount(account: string): Promise<string> {
-    const adminToken = await this.getAccessToken();
-    const result = await getOpenIdByAccount(account, adminToken, this.tokenState.currentDomain);
-    this.subState.openId = result.openId;
-    this.subState.subAccountEmail = result.email;
-    return result.openId;
+    await imouTokenService.getSubToken(account);
+    return imouTokenService.getStoredOpenId() ?? '';
   }
 
   async getSubAccountToken(openId?: string): Promise<string> {
-    const targetOpenId = openId || this.subState.openId;
-    if (!targetOpenId) {
-      throw new Error('OpenId is required. Call createSubAccount or getOpenIdByAccount first.');
-    }
-
-    if (this.subState.subAccessToken && this.subState.subAccessToken.length > 0) {
-      console.log('[IMOU-SDK] Using cached subAccessToken');
-      return this.subState.subAccessToken;
-    }
-
-    const adminToken = await this.getAccessToken();
-    const result = await fetchSubAccountToken(targetOpenId, adminToken, this.tokenState.currentDomain);
-    this.subState.subAccessToken = result.accessToken;
-    this.subState.subTokenExpireTime = result.expireTime;
-    return result.accessToken;
+    return imouTokenService.getSubToken();
   }
 
   async loginSubAccount(account: string): Promise<string> {
-    console.log('[IMOU-SDK] loginSubAccount() called - account:', account);
-    let openIdObtained = false;
-
-    try {
-      await this.createSubAccount(account);
-      openIdObtained = true;
-    } catch (createError: any) {
-      console.log('[IMOU-SDK] createSubAccount error:', createError?.message);
-      if (createError?.message?.includes('OP1010') ||
-          createError?.message?.includes('already exist') ||
-          createError?.message?.includes('SUB1002')) {
-        console.log('[IMOU-SDK] Account already exists, trying to get openId...');
-      }
-    }
-
-    if (!openIdObtained) {
-      try {
-        await this.getOpenIdByAccount(account);
-        openIdObtained = true;
-      } catch (getError: any) {
-        throw new Error(`Не удалось создать или найти аккаунт: ${getError?.message}`);
-      }
-    }
-
-    if (!this.subState.openId) {
-      throw new Error('OpenId не получен');
-    }
-
-    return await this.getSubAccountToken();
+    return imouTokenService.getSubToken(account);
   }
 
   isSubAccountLoggedIn(): boolean {
-    return !!(this.subState.subAccessToken && this.subState.subAccessToken.length > 0);
+    return imouTokenService.isSubAccountReady();
   }
 
   getSubAccountEmail(): string | null {
-    return this.subState.subAccountEmail;
+    return imouTokenService.getSubAccountEmail();
   }
 
   getStoredOpenId(): string | null {
-    return this.subState.openId;
+    return imouTokenService.getStoredOpenId();
   }
 
   getStoredSubAccessToken(): string | null {
-    return this.subState.subAccessToken;
+    return imouTokenService.getStoredSubAccessToken();
   }
 
   logoutSubAccount(): void {
-    console.log('[IMOU-SDK] logoutSubAccount() called');
-    this.subState = createInitialSubAccountState();
+    imouTokenService.invalidateSubToken();
   }
 
   async initSDK(token?: string): Promise<boolean> {
-    console.log('[IMOU-SDK] initSDK() called, already initialized:', this.initialized);
-    if (this.initialized) {
-      return true;
-    }
-
-    const accessToken = token || await this.getAccessToken();
-    let apiHost: string | null = null;
-
-    if (this.tokenState.currentDomain) {
-      const match = this.tokenState.currentDomain.match(/https?:\/\/([^:/]+)(?::(\d+))?/);
-      if (match) {
-        const hostname = match[1];
-        const port = match[2] || '443';
-        apiHost = `${hostname}:${port}`;
-      }
-    }
-
-    const result = apiHost
-      ? await ImouModule.initSDKWithHost(accessToken, apiHost)
-      : await ImouModule.initSDK(accessToken);
-
-    this.initialized = result;
-    return result;
+    await imouTokenService.ensureSDKInitialized();
+    return true;
   }
 
   async initialize(): Promise<boolean> {
-    console.log('[IMOU-SDK] initialize() started');
-    await this.getAccessToken();
-    return await this.initSDK();
+    await imouTokenService.ensureSDKInitialized();
+    return true;
   }
 
   setLogLevel(level: number): void {
@@ -195,56 +109,57 @@ export class ImouSDK {
   }
 
   getStoredAccessToken(): string | null {
-    return this.tokenState.accessToken;
+    return imouTokenService.getStoredAdminToken();
   }
 
-  async getKitToken(deviceId: string, channelId: string = '0', type: string = '0'): Promise<{ kitToken: string; expireTime: number }> {
-    const token = this.isSubAccountLoggedIn() ? this.subState.subAccessToken! : await this.getAccessToken();
-    return fetchKitToken(deviceId, channelId, type, token, this.tokenState.currentDomain);
+  async getKitToken(
+    deviceId: string,
+    channelId = '0',
+    type = '0',
+  ): Promise<{ kitToken: string; expireTime: number }> {
+    return imouTokenService.getKitToken(deviceId, channelId, type);
   }
 
-  async getDeviceList(page: number = 1, pageSize: number = 10): Promise<{ devices: ImouDevice[]; total: number }> {
-    const token = this.isSubAccountLoggedIn() ? this.subState.subAccessToken! : await this.getAccessToken();
-    return fetchDeviceList(page, pageSize, token, this.tokenState.currentDomain);
+  async getDeviceList(page = 1, pageSize = 10): Promise<{ devices: ImouDevice[]; total: number }> {
+    const token = await imouTokenService.getSubToken().catch(() => imouTokenService.getAdminToken());
+    return fetchDeviceList(page, pageSize, token, imouTokenService.getCurrentDomain());
   }
 
   async bindDevice(deviceSn: string, code: string): Promise<string> {
-    const adminToken = await this.getAccessToken();
-    const deviceId = await bindDeviceToAccount(deviceSn, code, adminToken, this.tokenState.currentDomain);
-
-    if (this.subState.openId) {
-      await this.addDevicePolicy(deviceId);
+    const adminToken = await imouTokenService.getAdminToken();
+    const deviceId = await bindDeviceToAccount(deviceSn, code, adminToken, imouTokenService.getCurrentDomain());
+    const openId = imouTokenService.getStoredOpenId();
+    if (openId) {
+      await addDevicePolicy(deviceId, openId, adminToken, imouTokenService.getCurrentDomain());
     }
-
     return deviceId;
   }
 
   async addDevicePolicy(deviceId: string): Promise<boolean> {
-    if (!this.subState.openId) {
-      return false;
-    }
-    const adminToken = await this.getAccessToken();
-    return addDevicePolicy(deviceId, this.subState.openId, adminToken, this.tokenState.currentDomain);
+    const openId = imouTokenService.getStoredOpenId();
+    if (!openId) return false;
+    const adminToken = await imouTokenService.getAdminToken();
+    return addDevicePolicy(deviceId, openId, adminToken, imouTokenService.getCurrentDomain());
   }
 
   async unbindDevice(deviceId: string): Promise<boolean> {
-    const adminToken = await this.getAccessToken();
-    return unbindDeviceFromAccount(deviceId, adminToken, this.tokenState.currentDomain);
+    const adminToken = await imouTokenService.getAdminToken();
+    return unbindDeviceFromAccount(deviceId, adminToken, imouTokenService.getCurrentDomain());
   }
 
   async getDeviceInfoBeforeBind(deviceSn: string, deviceCode: string) {
-    const accessToken = await this.getAccessToken();
-    return fetchDeviceInfoBeforeBind(deviceSn, deviceCode, accessToken, this.tokenState.currentDomain);
+    const accessToken = await imouTokenService.getAdminToken();
+    return fetchDeviceInfoBeforeBind(deviceSn, deviceCode, accessToken, imouTokenService.getCurrentDomain());
   }
 
   async getCurrentDeviceWifi(deviceId: string): Promise<CurWifiInfo> {
-    const accessToken = await this.getAccessToken();
-    return fetchCurrentDeviceWifi(deviceId, accessToken, this.tokenState.currentDomain);
+    const accessToken = await imouTokenService.getAdminToken();
+    return fetchCurrentDeviceWifi(deviceId, accessToken, imouTokenService.getCurrentDomain());
   }
 
   async getWifiAround(deviceId: string): Promise<WifiConfig> {
-    const accessToken = await this.getAccessToken();
-    return fetchWifiAround(deviceId, accessToken, this.tokenState.currentDomain);
+    const accessToken = await imouTokenService.getAdminToken();
+    return fetchWifiAround(deviceId, accessToken, imouTokenService.getCurrentDomain());
   }
 
   async controlDeviceWifi(
@@ -252,17 +167,17 @@ export class ImouSDK {
     ssid: string,
     bssid: string,
     password: string,
-    linkEnable: boolean = true
+    linkEnable = true,
   ): Promise<boolean> {
-    const accessToken = await this.getAccessToken();
-    return controlDeviceWifiConnection(deviceId, ssid, bssid, password, linkEnable, accessToken, this.tokenState.currentDomain);
+    const accessToken = await imouTokenService.getAdminToken();
+    return controlDeviceWifiConnection(deviceId, ssid, bssid, password, linkEnable, accessToken, imouTokenService.getCurrentDomain());
   }
 
   getCurrentWifiSsid(): Promise<string> {
     return getCurrentWifiSsid();
   }
 
-  connectToDeviceAp(ssid: string, password: string = ''): Promise<boolean> {
+  connectToDeviceAp(ssid: string, password = ''): Promise<boolean> {
     return connectToDeviceAp(ssid, password);
   }
 
@@ -286,7 +201,7 @@ export class ImouSDK {
     return getGatewayIp();
   }
 
-  getSoftApWifiList(devicePassword: string, isScDevice: boolean = true): Promise<SoftApWifiItem[]> {
+  getSoftApWifiList(devicePassword: string, isScDevice = true): Promise<SoftApWifiItem[]> {
     return getSoftApWifiList(devicePassword, isScDevice);
   }
 
@@ -295,9 +210,26 @@ export class ImouSDK {
     password: string,
     encryptionType: number,
     devicePassword: string,
-    deviceSn: string
+    deviceSn: string,
   ): Promise<boolean> {
     return startSoftApConfig(ssid, password, encryptionType, devicePassword, deviceSn);
+  }
+
+  async getFrameReverseStatus(deviceId: string, channelId = '0'): Promise<FrameDirection> {
+    const token = await imouTokenService.getAdminToken();
+    return fetchFrameReverseStatus(deviceId, channelId, token, imouTokenService.getCurrentDomain());
+  }
+
+  async setFrameReverse(deviceId: string, direction: FrameDirection, channelId = '0'): Promise<void> {
+    const token = await imouTokenService.getAdminToken();
+    return modifyFrameReverseStatus(deviceId, channelId, direction, token, imouTokenService.getCurrentDomain());
+  }
+
+  async toggleFrameReverse(deviceId: string, channelId = '0'): Promise<FrameDirection> {
+    const current = await this.getFrameReverseStatus(deviceId, channelId);
+    const newDirection: FrameDirection = current === 'normal' ? 'reverse' : 'normal';
+    await this.setFrameReverse(deviceId, newDirection, channelId);
+    return newDirection;
   }
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, Dimensions, ActivityIndicator, TouchableOpacity, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, Dimensions, ActivityIndicator, TouchableOpacity, Alert, Modal, TextInput, ScrollView } from 'react-native';
 import { alashCloudAPI } from '../../api/client';
 import { Product, isApiError } from '../../api/types';
 
@@ -26,6 +26,7 @@ const DeviceCurrentProducts: React.FC<DeviceCurrentProductsProps> = ({ deviceId,
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
+  const [removeQuantity, setRemoveQuantity] = useState(1);
 
   const loadProducts = async () => {
     if (!deviceId) return;
@@ -55,19 +56,29 @@ const DeviceCurrentProducts: React.FC<DeviceCurrentProductsProps> = ({ deviceId,
   const handleRemoveProduct = (product: Product) => {
     setSelectedProduct(product);
     setSelectedReason(null);
+    setRemoveQuantity(product.remaining_quantity);
     setShowRemoveModal(true);
   };
 
   const handleConfirmRemove = async () => {
-    if (!selectedProduct || !selectedReason) return;
+    if (!selectedProduct || !selectedReason || removeQuantity <= 0) return;
+
+    const soldQuantity = selectedProduct.quantity - selectedProduct.remaining_quantity;
+    const newQuantity = selectedProduct.quantity - removeQuantity;
+
+    if (removeQuantity > selectedProduct.remaining_quantity) {
+      Alert.alert('Ошибка', `Можно вернуть максимум ${selectedProduct.remaining_quantity} шт (остаток на устройстве)`);
+      return;
+    }
 
     setShowRemoveModal(false);
     setRemovingProductId(selectedProduct.batch_product_id);
 
     try {
+      const quantityToSend = newQuantity <= soldQuantity ? 0 : newQuantity;
       const response = await alashCloudAPI.assignProducts(deviceId, [{
         batch_product_id: selectedProduct.batch_product_id,
-        quantity: 0
+        quantity: quantityToSend
       }]);
       if (isApiError(response)) {
         Alert.alert('Ошибка', response.error);
@@ -81,6 +92,7 @@ const DeviceCurrentProducts: React.FC<DeviceCurrentProductsProps> = ({ deviceId,
       setRemovingProductId(null);
       setSelectedProduct(null);
       setSelectedReason(null);
+      setRemoveQuantity(1);
     }
   };
 
@@ -88,6 +100,7 @@ const DeviceCurrentProducts: React.FC<DeviceCurrentProductsProps> = ({ deviceId,
     setShowRemoveModal(false);
     setSelectedProduct(null);
     setSelectedReason(null);
+    setRemoveQuantity(1);
   };
 
   const renderProduct = ({ item }: { item: Product }) => {
@@ -172,17 +185,67 @@ const DeviceCurrentProducts: React.FC<DeviceCurrentProductsProps> = ({ deviceId,
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Удаление товара</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+            <Text style={styles.modalTitle}>Возврат товара на склад</Text>
             {selectedProduct && (
-              <Text style={styles.modalProductName}>
-                {selectedProduct.product_name}
-              </Text>
-            )}
-            <Text style={styles.modalSubtitle}>
-              Остаток ({selectedProduct?.remaining_quantity || 0} шт) будет возвращён на склад
-            </Text>
+              <>
+                <Text style={styles.modalProductName}>
+                  {selectedProduct.product_name}
+                </Text>
 
-            <Text style={styles.reasonLabel}>Выберите причину удаления:</Text>
+                <View style={styles.statsContainer}>
+                  <View style={styles.statRow}>
+                    <Text style={styles.statLabel}>Распределено:</Text>
+                    <Text style={styles.statValue}>{selectedProduct.quantity} шт</Text>
+                  </View>
+                  <View style={styles.statRow}>
+                    <Text style={styles.statLabel}>Продано:</Text>
+                    <Text style={styles.statValueSold}>{selectedProduct.quantity - selectedProduct.remaining_quantity} шт</Text>
+                  </View>
+                  <View style={styles.statRow}>
+                    <Text style={styles.statLabel}>Остаток на устройстве:</Text>
+                    <Text style={styles.statValueRemaining}>{selectedProduct.remaining_quantity} шт</Text>
+                  </View>
+                </View>
+
+                <Text style={styles.quantityLabel}>Сколько вернуть на склад?</Text>
+                <View style={styles.quantitySelector}>
+                  <TouchableOpacity
+                    style={styles.quantityButton}
+                    onPress={() => setRemoveQuantity(Math.max(1, removeQuantity - 1))}
+                    disabled={removeQuantity <= 1}
+                  >
+                    <Text style={styles.quantityButtonText}>−</Text>
+                  </TouchableOpacity>
+                  <TextInput
+                    style={styles.quantityInput}
+                    value={String(removeQuantity)}
+                    onChangeText={(text) => {
+                      const num = parseInt(text, 10);
+                      if (!isNaN(num) && num >= 0 && num <= selectedProduct.remaining_quantity) {
+                        setRemoveQuantity(num);
+                      } else if (text === '') {
+                        setRemoveQuantity(0);
+                      }
+                    }}
+                    keyboardType="numeric"
+                    selectTextOnFocus
+                  />
+                  <TouchableOpacity
+                    style={styles.quantityButton}
+                    onPress={() => setRemoveQuantity(Math.min(selectedProduct.remaining_quantity, removeQuantity + 1))}
+                    disabled={removeQuantity >= selectedProduct.remaining_quantity}
+                  >
+                    <Text style={styles.quantityButtonText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.quantityHint}>
+                  Макс: {selectedProduct.remaining_quantity} шт · После возврата на устройстве: {selectedProduct.remaining_quantity - removeQuantity} шт
+                </Text>
+              </>
+            )}
+
+            <Text style={styles.reasonLabel}>Причина возврата:</Text>
             {REMOVAL_REASONS.map((reason) => (
               <TouchableOpacity
                 key={reason.id}
@@ -217,14 +280,17 @@ const DeviceCurrentProducts: React.FC<DeviceCurrentProductsProps> = ({ deviceId,
               <TouchableOpacity
                 style={[
                   styles.confirmButton,
-                  !selectedReason && styles.confirmButtonDisabled
+                  (!selectedReason || removeQuantity <= 0) && styles.confirmButtonDisabled
                 ]}
                 onPress={handleConfirmRemove}
-                disabled={!selectedReason}
+                disabled={!selectedReason || removeQuantity <= 0}
               >
-                <Text style={styles.confirmButtonText}>Удалить</Text>
+                <Text style={styles.confirmButtonText}>
+                  Вернуть {removeQuantity} шт
+                </Text>
               </TouchableOpacity>
             </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -362,6 +428,7 @@ const styles = StyleSheet.create({
     padding: 24,
     width: '90%',
     maxWidth: 400,
+    maxHeight: '85%',
   },
   modalTitle: {
     fontSize: 20,
@@ -382,6 +449,84 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
     marginBottom: 20,
+  },
+  statsContainer: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  statValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  statValueSold: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#dc2626',
+  },
+  statValueRemaining: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  quantityLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  quantitySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    gap: 12,
+  },
+  quantityButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  quantityButtonText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  quantityInput: {
+    width: 70,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#22223b',
+    backgroundColor: '#fff',
+  },
+  quantityHint: {
+    fontSize: 12,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginBottom: 16,
   },
   reasonLabel: {
     fontSize: 14,

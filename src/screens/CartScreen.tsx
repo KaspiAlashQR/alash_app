@@ -211,6 +211,19 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
         url: '',
       });
 
+      if (internalOrderResp?.statusCode === 403) {
+        const reason = internalOrderResp.subscription_status === 'blocked'
+          ? 'Статус подписки: blocked.'
+          : internalOrderResp.subscription_status === 'overdue'
+            ? 'Статус подписки: overdue.'
+            : '';
+        Alert.alert(
+          'Подписка неактивна',
+          `${internalOrderResp.error || 'Срок подписки истек. Оплатите абонентскую плату'}${reason ? `\n${reason}` : ''}`
+        );
+        return;
+      }
+
       if (!internalOrderResp || internalOrderResp.error || typeof internalOrderResp.id !== 'number') {
         Alert.alert('Ошибка', 'Не удалось создать внутренний заказ. Попробуйте ещё раз.');
         return;

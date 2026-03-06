@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import ReactNativeBlobUtil from 'react-native-blob-util';
 import { uploadFileToS3, deleteLocalFile } from './s3Upload';
 import { S3_CONFIG } from './s3Config';
 import { updateOrder } from '../api/orders';
@@ -60,6 +61,19 @@ export async function getPendingRecordings(): Promise<PendingRecording[]> {
 
 async function processOne(record: PendingRecording): Promise<boolean> {
   const s3Key = `${S3_CONFIG.recordingsPrefix}${record.orderId}.mp4`;
+
+  // Логируем размер файла перед загрузкой
+  try {
+    const exists = await ReactNativeBlobUtil.fs.exists(record.filePath);
+    if (exists) {
+      const stat = await ReactNativeBlobUtil.fs.stat(record.filePath);
+      console.log(`[Upload] Recording ${record.orderId}: file exists, size=${stat.size} bytes (${(Number(stat.size) / 1024).toFixed(1)} KB), path=${record.filePath}`);
+    } else {
+      console.warn(`[Upload] Recording ${record.orderId}: file NOT FOUND at ${record.filePath}`);
+    }
+  } catch (e) {
+    console.error(`[Upload] Recording ${record.orderId}: file stat error:`, e);
+  }
 
   console.log(`Uploading recording ${record.orderId} -> s3://${S3_CONFIG.bucket}/${s3Key}`);
   const result = await uploadFileToS3(record.filePath, s3Key);

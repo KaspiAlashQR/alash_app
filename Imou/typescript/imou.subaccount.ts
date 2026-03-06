@@ -109,7 +109,7 @@ export async function fetchSubAccountToken(
     console.log('[IMOU-SDK] SubAccessToken obtained successfully');
     return {
       accessToken: data.result.data.accessToken,
-      expireTime: data.result.data.expireTime,
+      expireTime: timestamp + data.result.data.expireTime,
     };
   }
 

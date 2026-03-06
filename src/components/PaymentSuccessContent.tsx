@@ -3,8 +3,9 @@ import { View, Text, StyleSheet, ScrollView, Image, Dimensions } from 'react-nat
 // import { Camera, CameraDevice } from 'react-native-vision-camera'; // Закомментировано - фронтальная камера
 import { CartItem } from '../api/types';
 import { deviceStorage } from '../api/storage';
-import { imouSDK, ImouCameraView } from '../../Imou/typescript/imou';
+import { ImouCameraView } from '../../Imou/typescript/imou';
 import type { ImouCameraViewRef } from '../../Imou/typescript/imou';
+import { imouTokenService } from '../../Imou/typescript/imou.token-service';
 import { addPendingRecording, processUploadQueue } from '../services/recordingQueue';
 
 interface PaymentSuccessContentProps {
@@ -40,68 +41,45 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
   const imouCameraRef = useRef<ImouCameraViewRef>(null);
   const cameraCallbackFired = useRef(false);
   const recordStartedRef = useRef(false);
+  const cameraTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
 
   useEffect(() => {
     const initImouCamera = async () => {
       try {
+        console.log('[Camera] initImouCamera: starting initialization for recordOrderId:', recordOrderId);
         const cameraSettings = await deviceStorage.getCameraSettings();
         if (!cameraSettings?.deviceId) {
+          console.warn('[Camera] initImouCamera: Camera not configured - deviceId missing');
           setImouError('Камера не настроена');
           onCameraFailed?.();
           return;
         }
-
+        console.log('[Camera] initImouCamera: device found. deviceId:', cameraSettings.deviceId);
         setImouDeviceId(cameraSettings.deviceId);
 
-        await imouSDK.initialize();
+        console.log('[Camera] initImouCamera: requesting tokens from token service');
+        const { accessToken, playToken, productId } = await imouTokenService.getCameraTokens(cameraSettings.deviceId);
+        console.log('[Camera] initImouCamera: tokens received. accessToken:', !!accessToken, 'playToken:', !!playToken, 'productId:', productId);
 
-        if (!imouSDK.isSubAccountLoggedIn()) {
-          const deviceInfo = await deviceStorage.getDeviceInfo();
-          if (deviceInfo?.email) {
-            await imouSDK.loginSubAccount(deviceInfo.email);
-          }
-        }
+        setImouAccessToken(accessToken);
+        setImouPlayToken(playToken);
+        if (productId) setImouProductId(productId);
+        setImouCameraReady(true);
+        console.log('[Camera] initImouCamera: camera ready set to true');
 
-        if (!imouSDK.isSubAccountLoggedIn()) {
-          setImouError('Необходимо войти в аккаунт IMOU');
-          onCameraFailed?.();
-          return;
-        }
-
-        const token = imouSDK.getStoredSubAccessToken();
-        if (!token) {
-          setImouError('Токен не найден');
-          onCameraFailed?.();
-          return;
-        }
-        setImouAccessToken(token);
-
-        if (cameraSettings.playToken) {
-          setImouPlayToken(cameraSettings.playToken);
-          if (cameraSettings.productId) {
-            setImouProductId(cameraSettings.productId);
-          }
-          setImouCameraReady(true);
-        } else {
-          const { devices } = await imouSDK.getDeviceList(1, 50);
-          const device = devices.find(d => d.deviceId === cameraSettings.deviceId);
-          if (device?.playToken) {
-            setImouPlayToken(device.playToken);
-            if (device.productId) {
-              setImouProductId(device.productId);
-            }
-            setImouCameraReady(true);
-            await deviceStorage.saveCameraSettings({
-              ...cameraSettings,
-              playToken: device.playToken,
-              productId: device.productId,
-            });
-          } else {
-            setImouError('Нет playToken. Обновите список устройств.');
+        // Timeout: if camera doesn't respond to onPlayStart or onError within 20 seconds, continue without it
+        cameraTimeoutRef.current = setTimeout(() => {
+          if (!cameraCallbackFired.current) {
+            console.warn('[Camera] initImouCamera: Timeout 20s - camera did not respond, continuing without it');
+            cameraCallbackFired.current = true;
+            setImouError('Камера не ответила');
             onCameraFailed?.();
           }
-        }
+        }, 20000);
+        console.log('[Camera] initImouCamera: timeout set for 20 seconds');
       } catch (error: any) {
+        console.error('[Camera] initImouCamera error:', error?.message || error);
         setImouError(error?.message || 'Ошибка инициализации');
         onCameraFailed?.();
       }
@@ -110,17 +88,29 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
     initImouCamera();
 
     return () => {
+      console.log('[Camera] Cleanup: PaymentSuccessContent unmounting. recordOrderId:', recordOrderId, 'recordStarted:', recordStartedRef.current);
+      if (cameraTimeoutRef.current) {
+        console.log('[Camera] Cleanup: clearing camera timeout');
+        clearTimeout(cameraTimeoutRef.current);
+        cameraTimeoutRef.current = null;
+      }
       if (recordStartedRef.current) {
+        console.log('[Camera] Cleanup: stopping active recording. orderId:', recordOrderId);
         imouCameraRef.current?.stopRecord();
         recordStartedRef.current = false;
+        console.log('[Camera] Cleanup: recording stopped on unmount');
       }
       if (imouCameraRef.current) {
+        console.log('[Camera] Cleanup: stopping preview');
         imouCameraRef.current.stopPreview();
+        console.log('[Camera] Cleanup: preview stopped');
       }
       // Upload any pending recordings on unmount
+      console.log('[Camera] Cleanup: processing remaining uploads for orderId:', recordOrderId);
       processUploadQueue().catch(e =>
-        console.error('Upload queue error on unmount:', e),
+        console.error('[Camera] Upload queue error on unmount:', e),
       );
+      console.log('[Camera] Cleanup: complete');
     };
   }, []);
 
@@ -213,22 +203,35 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
                 streamType={0}
                 autoPlay={true}
                 onPlayStart={() => {
+                  console.log('[Camera] onPlayStart: video stream started. deviceId:', imouDeviceId, 'recordOrderId:', recordOrderId);
+                  if (cameraTimeoutRef.current) {
+                    console.log('[Camera] onPlayStart: clearing timeout');
+                    clearTimeout(cameraTimeoutRef.current);
+                    cameraTimeoutRef.current = null;
+                  }
                   if (!cameraCallbackFired.current) {
                     cameraCallbackFired.current = true;
+                    console.log('[Camera] onPlayStart: calling onCameraReady callback');
                     onCameraReady?.();
                   }
                   if (!recordStartedRef.current) {
                     recordStartedRef.current = true;
+                    console.log('[Camera] onPlayStart: starting record for orderId:', recordOrderId);
                     imouCameraRef.current?.startRecord(String(recordOrderId));
+                    console.log('[Camera] onPlayStart: record start command sent');
                   }
                 }}
                 onPlayStop={() => {
+                  console.log('[Camera] onPlayStop: video stream stopped. recordOrderId:', recordOrderId, 'recordStarted:', recordStartedRef.current);
                   if (recordStartedRef.current) {
+                    console.log('[Camera] onPlayStop: stopping record for orderId:', recordOrderId);
                     imouCameraRef.current?.stopRecord();
                     recordStartedRef.current = false;
+                    console.log('[Camera] onPlayStop: record stopped');
                   }
                 }}
                 onRecordStart={async ({ filePath }) => {
+                  console.log('[Camera] onRecordStart: recording started. filePath:', filePath, 'recordOrderId:', recordOrderId);
                   try {
                     await addPendingRecording({
                       orderId: recordOrderId,
@@ -236,23 +239,41 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
                       createdAt: new Date().toISOString(),
                       uploaded: false,
                     });
+                    console.log('[Camera] onRecordStart: recording added to queue. orderId:', recordOrderId);
                   } catch (e) {
-                    console.error('recordingQueue add error:', e);
+                    console.error('[Camera] recordingQueue add error:', e);
                   }
                 }}
                 onRecordStop={() => {
+                  console.log('[Camera] onRecordStop: recording stopped. orderId:', recordOrderId, 'recordStarted:', recordStartedRef.current);
+                  recordStartedRef.current = false;
+                  console.log('[Camera] onRecordStop: processing upload queue for orderId:', recordOrderId);
                   processUploadQueue().catch(e =>
-                    console.error('Upload queue error:', e),
+                    console.error('[Camera] Upload queue error:', e),
                   );
+                  console.log('[Camera] onRecordStop: upload queue processing completed');
                 }}
                 onRecordError={({ error }) => {
-                  console.error('Imou record error:', error);
+                  console.error('[Camera] onRecordError: recording error. orderId:', recordOrderId, 'error:', error);
+                  console.log('[Camera] onRecordError: processing remaining uploads for orderId:', recordOrderId);
+                  processUploadQueue().catch(e =>
+                    console.error('[Camera] Upload queue error on record error:', e),
+                  );
                 }}
                 onError={(error) => {
+                  console.error('[Camera] onError: camera error triggered. recordOrderId:', recordOrderId, 'errorCode:', error?.error || error, 'recordStarted:', recordStartedRef.current);
+                  if (cameraTimeoutRef.current) {
+                    console.log('[Camera] onError: clearing timeout');
+                    clearTimeout(cameraTimeoutRef.current);
+                    cameraTimeoutRef.current = null;
+                  }
                   setImouError(error.error || 'Ошибка соединения');
                   if (!cameraCallbackFired.current) {
+                    console.log('[Camera] onError: calling onCameraFailed callback');
                     cameraCallbackFired.current = true;
                     onCameraFailed?.();
+                  } else {
+                    console.log('[Camera] onError: callback already fired, ignoring');
                   }
                 }}
               />

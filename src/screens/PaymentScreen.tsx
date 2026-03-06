@@ -16,7 +16,6 @@ import { reduceStockFIFO } from '../api/stock';
 import { deviceStorage } from '../api/storage';
 import { CartItem } from '../api/types';
 import PaymentSuccessContent from '../components/PaymentSuccessContent';
-import imouSDK from '../../Imou/typescript/imou';
 
 type PaymentScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Payment'>;
 type PaymentScreenRouteProp = RouteProp<RootStackParamList, 'Payment'>;
@@ -73,6 +72,10 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   const musicIntervalRef = useRef<number | null>(null);
   const unlockInstructionTimeoutRef = useRef<number | null>(null);
   const transitionTimeoutRef = useRef<number | null>(null);
+  const goingHomeRef = useRef(false);
+  const signalSentRef = useRef(false);
+  const timerDoneRef = useRef(false);
+  const paymentSuccessRef = useRef(false);
 
   const [isCameraActive, setIsCameraActive] = useState(false);
   const { hasPermission, requestPermission } = useCameraPermission();
@@ -95,18 +98,22 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
       setRemaining(left);
       if (left <= 0) {
         clearAll();
-        (async () => {
-          const resp = await updateOrder(internalOrderId, { status: 'cancelled' });
-          console.log('updateOrder(cancelled) response:', JSON.stringify(resp));
-          if (!resp || resp.error) {
-            console.error('updateOrder error:', resp && resp.error ? resp.error : resp);
-          }
-          await cartService.clearCart();
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Home' }],
-          });
-        })();
+        if (!paymentSuccessRef.current) {
+          (async () => {
+            const resp = await updateOrder(internalOrderId, { status: 'cancelled' });
+            console.log('[Payment] updateOrder(cancelled) response:', JSON.stringify(resp));
+            if (!resp || resp.error) {
+              console.error('[Payment] updateOrder error:', resp && resp.error ? resp.error : resp);
+            }
+            await cartService.clearCart();
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Home' }],
+            });
+          })();
+        } else {
+          console.log('[Payment] Payment already successful, skipping timeout navigation');
+        }
       }
     }, 1000) as unknown as number;
 
@@ -114,33 +121,30 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
       try {
         const response = await alashCloudAPI.checkOrder(orderId);
         if (response && typeof response === 'object' && 'error' in response) {
-          console.warn('checkOrder API error:', (response as any).error);
+          console.warn('[Payment] checkOrder API error:', (response as any).error);
           return;
         }
 
         if (response === true) {
+          console.log('[Payment] Payment confirmed. orderId:', orderId);
+          paymentSuccessRef.current = true;
           clearAll();
 
-          imouSDK.initialize().then(async () => {
-            if (!imouSDK.isSubAccountLoggedIn()) {
-              const deviceInfo = await deviceStorage.getDeviceInfo();
-              if (deviceInfo?.email) {
-                await imouSDK.loginSubAccount(deviceInfo.email);
-              }
-            }
-          }).catch(() => {});
-
           transitionTimeoutRef.current = setTimeout(() => {
-            if (!mountedRef.current) return;
+            if (!mountedRef.current) {
+              console.log('[Payment] transitionTimeout: component unmounted, cancelling');
+              return;
+            }
+            console.log('[Payment] transitionTimeout: showing PaymentSuccessContent');
             setShowUnlockInstruction(true);
             setPaymentSuccess(true);
           }, 5000) as unknown as number;
 
           (async () => {
             const resp = await updateOrder(internalOrderId, { status: 'paid' });
-            console.log('updateOrder(paid) response:', JSON.stringify(resp));
+            console.log('[Payment] updateOrder(paid) response:', JSON.stringify(resp));
             if (!resp || resp.error) {
-              console.error('updateOrder error:', resp && resp.error ? resp.error : resp);
+              console.error('[Payment] updateOrder error:', resp && resp.error ? resp.error : resp);
             }
 
             try {
@@ -159,19 +163,19 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
                   const stockResults = await reduceStockFIFO(deviceInfo.device_id, stockItems);
                   const failedItems = stockResults.filter(r => !r.success);
                   if (failedItems.length > 0) {
-                    console.error('Ошибки уменьшения остатка:', failedItems);
+                    console.error('[Payment] Stock reduction errors:', failedItems);
                   }
                 }
               }
             } catch (stockError) {
-              console.error('Ошибка уменьшения остатка товаров:', stockError);
+              console.error('[Payment] Stock reduction error:', stockError);
             }
-            
-            
+
+
           })();
         }
       } catch (err) {
-        console.error('Ошибка проверки заказа:', err);
+        console.error('[Payment] Check order error:', err);
       }
     };
 
@@ -192,6 +196,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
         clearTimeout(transitionTimeoutRef.current as any);
         transitionTimeoutRef.current = null;
       }
+      console.log('[Payment] Component cleanup: paymentSuccess:', paymentSuccessRef.current, 'goingHome:', goingHomeRef.current);
     };
 
     function clearAll() {
@@ -212,51 +217,96 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
       if (!hasPermission) {
         const granted = await requestPermission();
         if (!granted) {
-          console.log('Нет разрешения на использование камеры');
+          console.log('[Payment] Camera permission not granted');
           return;
         }
       }
 
       if (!frontCamera) {
-        console.log('Фронтальная камера не найдена');
+        console.log('[Payment] Front camera not found');
         return;
       }
 
       setIsCameraActive(true);
-      console.log('Камера включена');
+      console.log('[Payment] Camera enabled');
     } catch (error) {
-      console.error('Ошибка при включении камеры:', error);
+      console.error('[Payment] Error enabling camera:', error);
     }
   };
 
   const stopCamera = () => {
     setIsCameraActive(false);
-    console.log('Камера выключена');
+    console.log('[Payment] Camera disabled');
   };
 
   const handleCameraCallback = async () => {
-    if (!mountedRef.current) return;
-    setShowUnlockInstruction(false);
-    startUnlockTimer();
     try {
-      await playUnlockSignal();
-    } catch {}
-    if (!mountedRef.current) return;
-    try {
-      playSuccessSound();
-    } catch {}
+      console.log('[Payment] handleCameraCallback: invoked. mounted:', mountedRef.current, 'signalSent:', signalSentRef.current, 'timerDone:', timerDoneRef.current, 'paymentSuccess:', paymentSuccessRef.current);
+      if (!mountedRef.current) {
+        console.log('[Payment] handleCameraCallback: component unmounted, cancelling');
+        return;
+      }
+      console.log('[Payment] handleCameraCallback: hiding unlock instruction and starting timer');
+      setShowUnlockInstruction(false);
+      startUnlockTimer();
+      try {
+        console.log('[Payment] handleCameraCallback: calling playUnlockSignal');
+        await playUnlockSignal();
+        console.log('[Payment] handleCameraCallback: playUnlockSignal completed');
+      } catch (e) {
+        console.error('[Payment] handleCameraCallback: playUnlockSignal error:', e);
+        signalSentRef.current = true;
+        setSignalSent(true);
+        tryGoToHome();
+      }
+      if (!mountedRef.current) {
+        console.log('[Payment] handleCameraCallback: component unmounted before playSuccessSound, skipping');
+        return;
+      }
+      try {
+        console.log('[Payment] handleCameraCallback: playing success sound');
+        playSuccessSound();
+      } catch (e) {
+        console.error('[Payment] handleCameraCallback: playSuccessSound error:', e);
+      }
+    } catch (e) {
+      console.error('[Payment] handleCameraCallback: unhandled error:', e);
+      signalSentRef.current = true;
+      setSignalSent(true);
+      tryGoToHome();
+    }
   };
 
   const playUnlockSignal = async (): Promise<void> => {
+    console.log('[Payment] playUnlockSignal: AuxModule available:', !!(NativeModules.AuxModule?.playUnlockSignal));
+    console.log('[Payment] playUnlockSignal: starting camera');
     startCamera();
+    console.log('[Payment] playUnlockSignal: camera started, checking AuxModule');
     if (NativeModules.AuxModule && NativeModules.AuxModule.playUnlockSignal) {
-      try {
-        await NativeModules.AuxModule.playUnlockSignal();
-        setSignalSent(true);
-      } catch {
-        setSignalSent(false);
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`[Payment] playUnlockSignal: attempt ${attempt}/3`);
+          await NativeModules.AuxModule.playUnlockSignal();
+          console.log('[Payment] playUnlockSignal: signal sent successfully on attempt', attempt);
+          signalSentRef.current = true;
+          setSignalSent(true);
+          console.log('[Payment] playUnlockSignal: calling tryGoToHome after signal');
+          tryGoToHome();
+          return;
+        } catch (e) {
+          console.error(`[Payment] playUnlockSignal: attempt ${attempt} failed:`, e);
+          if (attempt < 3) {
+            console.log(`[Payment] playUnlockSignal: waiting 500ms before retry`);
+            await new Promise<void>(r => setTimeout(r, 500));
+          }
+        }
       }
     }
+    console.error('[Payment] playUnlockSignal: all attempts exhausted or AuxModule unavailable, continuing without signal');
+    signalSentRef.current = true;
+    setSignalSent(true);
+    console.log('[Payment] playUnlockSignal: calling tryGoToHome without signal');
+    tryGoToHome();
   };
 
 
@@ -296,21 +346,31 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   };
 
   const startUnlockTimer = () => {
+    console.log('[Payment] startUnlockTimer: starting for', UNLOCK_TIMER_SECONDS, 'seconds. paymentSuccess:', paymentSuccessRef.current);
+    timerDoneRef.current = false;
     setUnlockTimer(UNLOCK_TIMER_SECONDS);
     unlockTimerRef.current = setInterval(() => {
       if (!mountedRef.current) {
+        console.log('[Payment] startUnlockTimer: component unmounted, clearing timer');
         clearUnlockTimer();
         return;
       }
       setUnlockTimer(prev => {
-        if (prev <= 1) {
+        const nextVal = prev - 1;
+        if (nextVal % 5 === 0 || nextVal <= 3) {
+          console.log('[Payment] startUnlockTimer: countdown:', nextVal, 'seconds');
+        }
+        if (nextVal <= 0) {
+          console.log('[Payment] startUnlockTimer: timer completed. calling tryGoToHome');
           clearUnlockTimer();
-          goToHome();
+          timerDoneRef.current = true;
+          tryGoToHome();
           return 0;
         }
-        return prev - 1;
+        return nextVal;
       });
     }, 1000) as unknown as number;
+    console.log('[Payment] startUnlockTimer: interval started');
   };
 
   const clearUnlockTimer = () => {
@@ -320,14 +380,36 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
     }
   };
 
-  const goToHome = async () => {
+  const tryGoToHome = () => {
+    console.log('[Payment] tryGoToHome: signalSent:', signalSentRef.current, 'timerDone:', timerDoneRef.current, 'goingHome:', goingHomeRef.current, 'mounted:', mountedRef.current, 'paymentSuccess:', paymentSuccessRef.current);
+    if (!signalSentRef.current || !timerDoneRef.current) {
+      console.log('[Payment] tryGoToHome: conditions not met, waiting...');
+      return;
+    }
+    if (goingHomeRef.current) {
+      console.log('[Payment] tryGoToHome: already transitioning, skipping');
+      return;
+    }
+    if (!mountedRef.current) {
+      console.log('[Payment] tryGoToHome: component unmounted, skipping');
+      return;
+    }
+    if (!paymentSuccessRef.current) {
+      console.log('[Payment] tryGoToHome: payment not confirmed, skipping');
+      return;
+    }
+    goingHomeRef.current = true;
+    console.log('[Payment] tryGoToHome: ALL CONDITIONS MET - transitioning to Home');
     clearUnlockTimer();
     stopBackgroundMusic();
     stopCamera();
-    await cartService.clearCart();
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Home' }],
+    cartService.clearCart().catch(() => {}).finally(() => {
+      if (mountedRef.current) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Home' }],
+        });
+      }
     });
   };
 
@@ -339,6 +421,10 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   };
 
   const handleCancel = async () => {
+    if (paymentSuccessRef.current) {
+      console.log('[Payment] handleCancel: payment already confirmed, ignoring');
+      return;
+    }
 
     if (timerRef.current) {
       clearInterval(timerRef.current as any);
@@ -350,11 +436,11 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
     }
 
     const resp = await updateOrder(internalOrderId, { status: 'cancelled' });
-    console.log('updateOrder(cancelled) response:', JSON.stringify(resp));
+    console.log('[Payment] updateOrder(cancelled) response:', JSON.stringify(resp));
     if (!resp || resp.error) {
-      console.error('updateOrder error:', resp && resp.error ? resp.error : resp);
+      console.error('[Payment] updateOrder error:', resp && resp.error ? resp.error : resp);
     }
-    
+
     await cartService.clearCart();
     navigation.reset({
       index: 0,
