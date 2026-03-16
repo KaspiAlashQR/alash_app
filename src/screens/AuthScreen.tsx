@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, Dimensions, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { KioskModule } from '../utils/KioskModule';
+import { deviceStorage } from '../api/storage';
 
 type RootStackParamList = {
   Home: undefined;
@@ -17,7 +18,6 @@ interface AuthScreenProps {
   navigation: AuthScreenNavigationProp;
 }
 
-const ADMIN_PIN = '202501';
 const IMOU_PIN = '784512';
 const { width } = Dimensions.get('window');
 const isTablet = width > 600;
@@ -28,6 +28,11 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
   const [pin, setPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('admin');
+  const [adminPin, setAdminPin] = useState('202501');
+
+  useEffect(() => {
+    deviceStorage.getAdminPin().then(setAdminPin);
+  }, []);
 
   const handlePinChange = (value: string) => {
     const numericValue = value.replace(/[^0-9]/g, '');
@@ -45,7 +50,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
     setIsLoading(true);
 
     setTimeout(async () => {
-      if (pin === (activeTab === 'admin' ? ADMIN_PIN : IMOU_PIN)) {
+      if (pin === (activeTab === 'admin' ? adminPin : IMOU_PIN)) {
         try {
           if (Platform.OS === 'android') {
             await KioskModule.disableKioskMode();

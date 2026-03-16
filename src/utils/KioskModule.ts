@@ -21,6 +21,7 @@ interface KioskModuleInterface {
   toggleFullScreenMode(enable: boolean): Promise<string>;
   toggleLockTaskMode(enable: boolean): Promise<string>;
   disableDeviceOwner(): Promise<string>;
+  installApk(filePath: string): Promise<string>;
 }
 
 export const KioskModule: KioskModuleInterface = NativeModules.KioskModule;

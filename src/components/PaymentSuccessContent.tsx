@@ -267,13 +267,23 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
                     clearTimeout(cameraTimeoutRef.current);
                     cameraTimeoutRef.current = null;
                   }
+                  // Stop any active recording before flagging error
+                  if (recordStartedRef.current) {
+                    console.log('[Camera] onError: stopping active recording due to error. orderId:', recordOrderId);
+                    imouCameraRef.current?.stopRecord();
+                    recordStartedRef.current = false;
+                  }
                   setImouError(error.error || 'Ошибка соединения');
                   if (!cameraCallbackFired.current) {
                     console.log('[Camera] onError: calling onCameraFailed callback');
                     cameraCallbackFired.current = true;
                     onCameraFailed?.();
                   } else {
-                    console.log('[Camera] onError: callback already fired, ignoring');
+                    // Camera errored after playback started — unmount the broken native view
+                    // so it stops firing further events; the signal/timer flow in PaymentScreen
+                    // is already running and will handle navigation independently.
+                    console.log('[Camera] onError: callback already fired, unmounting broken camera view');
+                    setImouCameraReady(false);
                   }
                 }}
               />

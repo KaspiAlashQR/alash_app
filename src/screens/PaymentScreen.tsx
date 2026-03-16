@@ -240,40 +240,33 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   };
 
   const handleCameraCallback = async () => {
+    console.log('[Payment] handleCameraCallback: invoked. mounted:', mountedRef.current, 'signalSent:', signalSentRef.current, 'timerDone:', timerDoneRef.current, 'paymentSuccess:', paymentSuccessRef.current);
+    if (!mountedRef.current) {
+      console.log('[Payment] handleCameraCallback: component unmounted, cancelling');
+      return;
+    }
+    console.log('[Payment] handleCameraCallback: hiding unlock instruction and starting timer');
+    setShowUnlockInstruction(false);
+    startUnlockTimer();
+    // playUnlockSignal manages its own retry loop and will only mark signalSent=true
+    // once the signal is actually confirmed (or AuxModule is unavailable / 60s timeout).
+    // It never throws, so no try/catch needed here.
+    console.log('[Payment] handleCameraCallback: calling playUnlockSignal');
+    playUnlockSignal().then(() => {
+      console.log('[Payment] handleCameraCallback: playUnlockSignal returned');
+    }).catch(e => {
+      // Should not happen — playUnlockSignal resolves without throwing
+      console.error('[Payment] handleCameraCallback: playUnlockSignal unexpected rejection:', e);
+    });
+    if (!mountedRef.current) {
+      console.log('[Payment] handleCameraCallback: component unmounted before playSuccessSound, skipping');
+      return;
+    }
     try {
-      console.log('[Payment] handleCameraCallback: invoked. mounted:', mountedRef.current, 'signalSent:', signalSentRef.current, 'timerDone:', timerDoneRef.current, 'paymentSuccess:', paymentSuccessRef.current);
-      if (!mountedRef.current) {
-        console.log('[Payment] handleCameraCallback: component unmounted, cancelling');
-        return;
-      }
-      console.log('[Payment] handleCameraCallback: hiding unlock instruction and starting timer');
-      setShowUnlockInstruction(false);
-      startUnlockTimer();
-      try {
-        console.log('[Payment] handleCameraCallback: calling playUnlockSignal');
-        await playUnlockSignal();
-        console.log('[Payment] handleCameraCallback: playUnlockSignal completed');
-      } catch (e) {
-        console.error('[Payment] handleCameraCallback: playUnlockSignal error:', e);
-        signalSentRef.current = true;
-        setSignalSent(true);
-        tryGoToHome();
-      }
-      if (!mountedRef.current) {
-        console.log('[Payment] handleCameraCallback: component unmounted before playSuccessSound, skipping');
-        return;
-      }
-      try {
-        console.log('[Payment] handleCameraCallback: playing success sound');
-        playSuccessSound();
-      } catch (e) {
-        console.error('[Payment] handleCameraCallback: playSuccessSound error:', e);
-      }
+      console.log('[Payment] handleCameraCallback: playing success sound');
+      playSuccessSound();
     } catch (e) {
-      console.error('[Payment] handleCameraCallback: unhandled error:', e);
-      signalSentRef.current = true;
-      setSignalSent(true);
-      tryGoToHome();
+      console.error('[Payment] handleCameraCallback: playSuccessSound error:', e);
     }
   };
 
@@ -282,31 +275,49 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
     console.log('[Payment] playUnlockSignal: starting camera');
     startCamera();
     console.log('[Payment] playUnlockSignal: camera started, checking AuxModule');
-    if (NativeModules.AuxModule && NativeModules.AuxModule.playUnlockSignal) {
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          console.log(`[Payment] playUnlockSignal: attempt ${attempt}/3`);
-          await NativeModules.AuxModule.playUnlockSignal();
-          console.log('[Payment] playUnlockSignal: signal sent successfully on attempt', attempt);
-          signalSentRef.current = true;
-          setSignalSent(true);
-          console.log('[Payment] playUnlockSignal: calling tryGoToHome after signal');
-          tryGoToHome();
-          return;
-        } catch (e) {
-          console.error(`[Payment] playUnlockSignal: attempt ${attempt} failed:`, e);
-          if (attempt < 3) {
-            console.log(`[Payment] playUnlockSignal: waiting 500ms before retry`);
-            await new Promise<void>(r => setTimeout(r, 500));
-          }
-        }
+
+    if (!NativeModules.AuxModule || !NativeModules.AuxModule.playUnlockSignal) {
+      console.warn('[Payment] playUnlockSignal: AuxModule unavailable, skipping signal');
+      signalSentRef.current = true;
+      setSignalSent(true);
+      tryGoToHome();
+      return;
+    }
+
+    // Retry until signal is confirmed sent, component unmounts, or safety timeout expires (60 s)
+    const MAX_RETRY_MS = 60_000;
+    const retryStart = Date.now();
+    let attempt = 0;
+
+    while (!signalSentRef.current && mountedRef.current) {
+      if (Date.now() - retryStart > MAX_RETRY_MS) {
+        console.warn('[Payment] playUnlockSignal: 60s safety timeout reached, forcing signal done');
+        break;
+      }
+      attempt++;
+      try {
+        console.log(`[Payment] playUnlockSignal: attempt ${attempt}`);
+        await NativeModules.AuxModule.playUnlockSignal();
+        console.log('[Payment] playUnlockSignal: signal sent successfully on attempt', attempt);
+        signalSentRef.current = true;
+        setSignalSent(true);
+        tryGoToHome();
+        return;
+      } catch (e) {
+        console.error(`[Payment] playUnlockSignal: attempt ${attempt} failed:`, e);
+        if (!mountedRef.current) break;
+        console.log('[Payment] playUnlockSignal: retrying in 2s...');
+        await new Promise<void>(r => setTimeout(r, 2000));
       }
     }
-    console.error('[Payment] playUnlockSignal: all attempts exhausted or AuxModule unavailable, continuing without signal');
-    signalSentRef.current = true;
-    setSignalSent(true);
-    console.log('[Payment] playUnlockSignal: calling tryGoToHome without signal');
-    tryGoToHome();
+
+    if (!signalSentRef.current) {
+      // Safety net: max retries exhausted or unmounted without success
+      console.warn('[Payment] playUnlockSignal: exiting retry loop, forcing signal done');
+      signalSentRef.current = true;
+      setSignalSent(true);
+      tryGoToHome();
+    }
   };
 
 

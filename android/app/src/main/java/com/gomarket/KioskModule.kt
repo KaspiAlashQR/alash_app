@@ -4,11 +4,19 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.WritableNativeMap
 
 class KioskModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
     override fun getName(): String {
         return "KioskModule"
+    }
+
+    override fun getConstants(): Map<String, Any> {
+        return mapOf(
+            "versionName" to BuildConfig.VERSION_NAME,
+            "versionCode" to BuildConfig.VERSION_CODE
+        )
     }
 
     @ReactMethod
@@ -123,6 +131,32 @@ class KioskModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
             } else {
                 promise.reject("ERROR", "Activity не найден")
             }
+        } catch (e: Exception) {
+            promise.reject("ERROR", e.message)
+        }
+    }
+
+    @ReactMethod
+    fun installApk(filePath: String, promise: Promise) {
+        try {
+            val context = reactApplicationContext
+            val file = java.io.File(filePath)
+            if (!file.exists()) {
+                promise.reject("ERROR", "APK файл не найден: $filePath")
+                return
+            }
+            val apkUri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+            }
+            context.startActivity(intent)
+            promise.resolve("Установка APK запущена")
         } catch (e: Exception) {
             promise.reject("ERROR", e.message)
         }

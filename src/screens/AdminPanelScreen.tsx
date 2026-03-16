@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Modal, TextInput, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Sound from 'react-native-sound';
@@ -12,6 +12,8 @@ import { CameraSettings } from '../api/types';
 import { imouSDK } from '../../Imou/typescript/imou';
 import { getLogStartTime, getLogCount } from '../services/diagnosticLogger';
 import { uploadDiagnostics } from '../services/diagnosticUpload';
+import { checkForUpdate, downloadAndInstallApk } from '../services/updateService';
+import type { UpdateInfo } from '../services/updateService';
 
 function formatLogStartTime(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -282,6 +284,153 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 12,
   },
+  // Update styles
+  updateButton: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: '#059669',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  updateButtonTablet: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  updateButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  updateModalContent: {
+    maxWidth: 480,
+    width: '90%',
+  },
+  updateModalCenter: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  updateModalHint: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  updateModalError: {
+    fontSize: 14,
+    color: '#ef4444',
+    textAlign: 'center',
+  },
+  updateModalGreen: {
+    fontSize: 16,
+    color: '#059669',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  updateVersionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  updateVersionBox: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 10,
+    padding: 12,
+    alignItems: 'center',
+    minWidth: 100,
+  },
+  updateVersionBoxNew: {
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: '#6ee7b7',
+  },
+  updateVersionLabel: {
+    fontSize: 11,
+    color: '#6b7280',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  updateVersionValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  updateVersionValueNew: {
+    color: '#059669',
+  },
+  updateVersionArrow: {
+    fontSize: 20,
+    color: '#9ca3af',
+  },
+  updateNotesScroll: {
+    maxHeight: 120,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 16,
+  },
+  updateNotesText: {
+    fontSize: 13,
+    color: '#374151',
+    lineHeight: 20,
+  },
+  updateProgressContainer: {
+    height: 24,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 12,
+    marginBottom: 16,
+    overflow: 'hidden',
+    justifyContent: 'center',
+  },
+  updateProgressBar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#059669',
+    borderRadius: 12,
+  },
+  updateProgressText: {
+    textAlign: 'center',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  updateInstallButton: {
+    flex: 1,
+    backgroundColor: '#059669',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  updateInstallButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  pinButton: {
+    backgroundColor: '#f59e0b',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: '#f59e0b',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  pinButtonTablet: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  pinButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
 
 type AdminPanelScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'AdminPanel'>;
@@ -306,6 +455,16 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
   const [diagLogStart, setDiagLogStart] = useState<Date | null>(null);
   const [diagLogCount, setDiagLogCount] = useState(0);
   const [diagUploading, setDiagUploading] = useState(false);
+  const [updateModalVisible, setUpdateModalVisible] = useState(false);
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadInstalling, setDownloadInstalling] = useState(false);
+  const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [currentPin, setCurrentPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
 
   useEffect(() => {
     loadCameraSettings();
@@ -447,6 +606,64 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
     }
   };
 
+  const handleOpenPinModal = async () => {
+    const savedPin = await deviceStorage.getAdminPin();
+    setCurrentPin(savedPin);
+    setNewPin('');
+    setConfirmPin('');
+    setPinModalVisible(true);
+  };
+
+  const handleSavePin = async () => {
+    if (newPin.length < 4) {
+      Alert.alert('Ошибка', 'PIN должен содержать минимум 4 цифры');
+      return;
+    }
+    if (newPin !== confirmPin) {
+      Alert.alert('Ошибка', 'PIN-коды не совпадают');
+      return;
+    }
+    try {
+      await deviceStorage.saveAdminPin(newPin);
+      setPinModalVisible(false);
+      Alert.alert('Успешно', 'PIN-код изменён');
+    } catch (e: any) {
+      Alert.alert('Ошибка', e?.message || 'Не удалось сохранить PIN');
+    }
+  };
+
+  const handleOpenUpdateModal = async () => {
+    setUpdateModalVisible(true);
+    setUpdateInfo(null);
+    setUpdateError(null);
+    setDownloadProgress(0);
+    setUpdateChecking(true);
+    try {
+      const info = await checkForUpdate();
+      setUpdateInfo(info);
+    } catch (e: any) {
+      setUpdateError(e?.message || 'Ошибка проверки обновлений');
+    } finally {
+      setUpdateChecking(false);
+    }
+  };
+
+  const handleInstallUpdate = async () => {
+    if (!updateInfo) { return; }
+    setDownloadInstalling(true);
+    setDownloadProgress(0);
+    try {
+      await downloadAndInstallApk(updateInfo.downloadUrl, percent => {
+        setDownloadProgress(percent);
+      });
+      setUpdateModalVisible(false);
+    } catch (e: any) {
+      Alert.alert('Ошибка', e?.message || 'Не удалось скачать обновление');
+    } finally {
+      setDownloadInstalling(false);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#fff' }] }>
       <View style={styles.navHeader}>
@@ -455,10 +672,22 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
         </Text>
         <View style={styles.headerButtons}>
           <TouchableOpacity
+            onPress={handleOpenPinModal}
+            style={[styles.pinButton, isTablet && styles.pinButtonTablet]}
+          >
+            <Text style={styles.pinButtonText}>Смена PIN</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             onPress={handleOpenDiag}
             style={[styles.diagButton, isTablet && styles.diagButtonTablet]}
           >
             <Text style={[styles.diagButtonText]}>Диагностика</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleOpenUpdateModal}
+            style={[styles.updateButton, isTablet && styles.updateButtonTablet]}
+          >
+            <Text style={styles.updateButtonText}>Обновление</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => {
@@ -630,6 +859,133 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
               >
                 <Text style={styles.modalButtonTextSave}>Сохранить</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* PIN Change Modal */}
+      <Modal
+        visible={pinModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPinModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Смена PIN-кода</Text>
+            <Text style={styles.modalHint}>Текущий PIN: {currentPin}</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Новый PIN-код"
+              value={newPin}
+              onChangeText={(v) => setNewPin(v.replace(/[^0-9]/g, ''))}
+              keyboardType="numeric"
+              secureTextEntry
+              maxLength={6}
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Повторите PIN-код"
+              value={confirmPin}
+              onChangeText={(v) => setConfirmPin(v.replace(/[^0-9]/g, ''))}
+              keyboardType="numeric"
+              secureTextEntry
+              maxLength={6}
+            />
+            <Text style={styles.modalHint}>Минимум 4 цифры</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalButtonCancel}
+                onPress={() => setPinModalVisible(false)}
+              >
+                <Text style={styles.modalButtonTextCancel}>Отмена</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalButtonSave}
+                onPress={handleSavePin}
+              >
+                <Text style={styles.modalButtonTextSave}>Сохранить</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Update Modal */}
+      <Modal
+        visible={updateModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { if (!downloadInstalling) { setUpdateModalVisible(false); } }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, styles.updateModalContent]}>
+            <Text style={styles.modalTitle}>Обновление приложения</Text>
+            {updateChecking && (
+              <View style={styles.updateModalCenter}>
+                <ActivityIndicator size="large" color="#059669" />
+                <Text style={styles.updateModalHint}>Проверка обновлений...</Text>
+              </View>
+            )}
+            {!updateChecking && !!updateError && (
+              <View style={styles.updateModalCenter}>
+                <Text style={styles.updateModalError}>{updateError}</Text>
+              </View>
+            )}
+            {!updateChecking && updateInfo && !updateInfo.hasUpdate && (
+              <View style={styles.updateModalCenter}>
+                <Text style={styles.updateModalGreen}>✓ Установлена последняя версия</Text>
+                <Text style={styles.updateModalHint}>Версия: {updateInfo.currentVersion}</Text>
+              </View>
+            )}
+            {!updateChecking && updateInfo?.hasUpdate && (
+              <>
+                <View style={styles.updateVersionRow}>
+                  <View style={styles.updateVersionBox}>
+                    <Text style={styles.updateVersionLabel}>Текущая</Text>
+                    <Text style={styles.updateVersionValue}>{updateInfo.currentVersion}</Text>
+                  </View>
+                  <Text style={styles.updateVersionArrow}>→</Text>
+                  <View style={[styles.updateVersionBox, styles.updateVersionBoxNew]}>
+                    <Text style={styles.updateVersionLabel}>Новая</Text>
+                    <Text style={[styles.updateVersionValue, styles.updateVersionValueNew]}>{updateInfo.latestVersion}</Text>
+                  </View>
+                </View>
+                {!!updateInfo.releaseNotes && (
+                  <ScrollView style={styles.updateNotesScroll} nestedScrollEnabled>
+                    <Text style={styles.updateNotesText}>{updateInfo.releaseNotes}</Text>
+                  </ScrollView>
+                )}
+                {downloadInstalling && (
+                  <View style={styles.updateProgressContainer}>
+                    <View style={[styles.updateProgressBar, { width: `${downloadProgress}%` }]} />
+                    <Text style={styles.updateProgressText}>{downloadProgress}%</Text>
+                  </View>
+                )}
+              </>
+            )}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalButtonCancel}
+                onPress={() => setUpdateModalVisible(false)}
+                disabled={downloadInstalling}
+              >
+                <Text style={styles.modalButtonTextCancel}>Закрыть</Text>
+              </TouchableOpacity>
+              {!updateChecking && updateInfo?.hasUpdate && (
+                <TouchableOpacity
+                  style={[styles.updateInstallButton, downloadInstalling && { opacity: 0.6 }]}
+                  onPress={handleInstallUpdate}
+                  disabled={downloadInstalling}
+                >
+                  {downloadInstalling ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.updateInstallButtonText}>Установить</Text>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>

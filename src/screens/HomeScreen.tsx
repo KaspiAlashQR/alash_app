@@ -276,7 +276,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             onPress={handleGoToCart}
           >
             <Text style={[styles.cartButtonText, isTablet && styles.cartButtonTextTablet]}>
-              Перейти к оплате
+              Перейти к оплате 
             </Text>
           </TouchableOpacity>
         )}

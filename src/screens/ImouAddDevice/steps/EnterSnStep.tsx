@@ -15,7 +15,7 @@ export const EnterSnStep: React.FC<Props> = ({ state, onUpdateDeviceInfo, onVali
     <Icon name="barcode-scan" size={64} color="#2563eb" style={styles.stepIcon} />
     <Text style={styles.stepTitle}>Введите данные устройства</Text>
     <Text style={styles.stepDescription}>
-      Серийный номер (SN) и код безопасности находятся на наклейке устройства
+      Серийный номер (SN) и код безопасности (SK) находятся на наклейке устройства
     </Text>
 
     <TextInput

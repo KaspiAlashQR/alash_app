@@ -5,7 +5,8 @@ export interface DeviceInfo {
   bin: string;
   user_id: number;
   pwd: string;
-  email?: string;  // Email для IMOU subaccount
+  email?: string;  // IMOU subaccount
+  admin_pin?: string; // '202501'
 }
 
 export interface Product {

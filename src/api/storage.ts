@@ -6,7 +6,10 @@ const STORAGE_KEYS = {
   FIRST_LAUNCH: 'first_launch',
   SETUP_COMPLETE: 'setup_complete',
   CAMERA_SETTINGS: 'camera_settings',
+  ADMIN_PIN: 'admin_pin',
 } as const;
+
+const DEFAULT_ADMIN_PIN = '202501';
 
 export class DeviceStorageService {
   async isFirstLaunch(): Promise<boolean> {
@@ -125,6 +128,25 @@ export class DeviceStorageService {
       await AsyncStorage.removeItem(STORAGE_KEYS.CAMERA_SETTINGS);
     } catch (error) {
       console.error('Error clearing camera settings:', error);
+    }
+  }
+
+  async getAdminPin(): Promise<string> {
+    try {
+      const pin = await AsyncStorage.getItem(STORAGE_KEYS.ADMIN_PIN);
+      return pin || DEFAULT_ADMIN_PIN;
+    } catch (error) {
+      console.error('Error getting admin pin:', error);
+      return DEFAULT_ADMIN_PIN;
+    }
+  }
+
+  async saveAdminPin(pin: string): Promise<void> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.ADMIN_PIN, pin);
+    } catch (error) {
+      console.error('Error saving admin pin:', error);
+      throw new Error('Не удалось сохранить PIN-код');
     }
   }
 }
