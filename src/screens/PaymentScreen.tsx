@@ -16,7 +16,7 @@ import { reduceStockFIFO } from '../api/stock';
 import { deviceStorage } from '../api/storage';
 import { CartItem } from '../api/types';
 import PaymentSuccessContent from '../components/PaymentSuccessContent';
-
+ 
 type PaymentScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Payment'>;
 type PaymentScreenRouteProp = RouteProp<RootStackParamList, 'Payment'>;
 

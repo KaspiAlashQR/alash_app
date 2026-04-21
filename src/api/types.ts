@@ -42,6 +42,8 @@ export interface BatchBreakdown {
   batch_number: string;
   quantity: number;
   price: number;
+  selling_price: number;
+  purchase_price: number;
   subtotal: number;
 }
 

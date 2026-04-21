@@ -412,6 +412,58 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  menuToggleButton: {
+    backgroundColor: '#22223b',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: '#22223b',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  menuToggleText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  menuOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 100,
+  },
+  menuDropdown: {
+    position: 'absolute',
+    top: 70,
+    right: 16,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingVertical: 8,
+    minWidth: 220,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+    zIndex: 101,
+  },
+  menuItem: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  menuItemText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginHorizontal: 16,
+    marginVertical: 4,
+  },
   pinButton: {
     backgroundColor: '#f59e0b',
     paddingHorizontal: 20,
@@ -465,6 +517,7 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
+  const [menuVisible, setMenuVisible] = useState(false);
 
   useEffect(() => {
     loadCameraSettings();
@@ -672,53 +725,41 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
         </Text>
         <View style={styles.headerButtons}>
           <TouchableOpacity
-            onPress={handleOpenPinModal}
-            style={[styles.pinButton, isTablet && styles.pinButtonTablet]}
+            onPress={() => setMenuVisible(!menuVisible)}
+            style={styles.menuToggleButton}
           >
-            <Text style={styles.pinButtonText}>Смена PIN</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleOpenDiag}
-            style={[styles.diagButton, isTablet && styles.diagButtonTablet]}
-          >
-            <Text style={[styles.diagButtonText]}>Диагностика</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleOpenUpdateModal}
-            style={[styles.updateButton, isTablet && styles.updateButtonTablet]}
-          >
-            <Text style={styles.updateButtonText}>Обновление</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => {
-              setCameraModalVisible(true);
-              if (savedCameraId) {
-                loadFlipStatus(savedCameraId);
-              }
-            }}
-            style={[styles.cameraButton, isTablet && styles.cameraButtonTablet]}
-          >
-            <Text style={[styles.cameraButtonText, isTablet && styles.cameraButtonTextTablet]}>
-              {savedCameraId ? 'Камера' : 'Камера'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={playUnlockSignal}
-            style={[styles.unlockButton, isTablet && styles.unlockButtonTablet]}
-          >
-            <Text style={[styles.unlockButtonText, isTablet && styles.unlockButtonTextTablet]}>
-              Открыть замок
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleLogout}
-            style={[styles.logoutButton, isTablet && styles.logoutButtonTablet]}
-          >
-            <Text style={[styles.logoutButtonText, isTablet && styles.logoutButtonTextTablet]}>
-              Выйти
-            </Text>
+            <Text style={styles.menuToggleText}>☰ Меню</Text>
           </TouchableOpacity>
         </View>
+        {menuVisible && (
+          <TouchableOpacity
+            style={styles.menuOverlay}
+            activeOpacity={1}
+            onPress={() => setMenuVisible(false)}
+          >
+            <View style={styles.menuDropdown}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); handleOpenPinModal(); }}>
+                <Text style={[styles.menuItemText, { color: '#f59e0b' }]}>🔑  Смена PIN</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); handleOpenDiag(); }}>
+                <Text style={[styles.menuItemText, { color: '#6366f1' }]}>📊  Диагностика</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); handleOpenUpdateModal(); }}>
+                <Text style={[styles.menuItemText, { color: '#059669' }]}>🔄  Обновление</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); setCameraModalVisible(true); if (savedCameraId) { loadFlipStatus(savedCameraId); } }}>
+                <Text style={[styles.menuItemText, { color: '#3b82f6' }]}>📷  Камера</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); playUnlockSignal(); }}>
+                <Text style={[styles.menuItemText, { color: '#10b981' }]}>🔓  Открыть замок</Text>
+              </TouchableOpacity>
+              <View style={styles.menuDivider} />
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); handleLogout(); }}>
+                <Text style={[styles.menuItemText, { color: '#ef4444' }]}>🚪  Выйти</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
       <View style={styles.tabBar}>
         <TouchableOpacity

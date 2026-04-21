@@ -199,9 +199,16 @@ const CartScreen: React.FC<CartScreenProps> = ({ navigation }) => {
       }
 
       const sum = cart.total;
-      const product_name = cart.items.map(item => ({ 
-        name: item.product.name_ru || item.product.name || '', 
-        quantity: item.quantity 
+      const product_name = cart.items.map(item => ({
+        name: item.product.name_ru || item.product.name || '',
+        quantity: item.quantity,
+        product_id: item.product.product_id,
+        batch_breakdown: (item.batchBreakdown || []).map(batch => ({
+          batch_product_id: batch.batch_product_id,
+          quantity: batch.quantity,
+          selling_price: batch.selling_price,
+          purchase_price: batch.purchase_price,
+        })),
       }));
 
       const internalOrderResp = await createInternalOrder({

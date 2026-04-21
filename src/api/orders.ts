@@ -8,7 +8,7 @@ export async function createInternalOrder(order: GoOrderCreate): Promise<GoOrder
     if (!token) {
       return { OK: false, error: 'Токен устройства не найден. Пожалуйста, пройдите авторизацию заново.' };
     }
-
+ 
     const response = await fetch(
       API_CONFIG.BASE_URL + API_CONFIG.ENDPOINTS.GO_ORDERS,
       {

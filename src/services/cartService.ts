@@ -79,6 +79,8 @@ class CartService {
         batch_number: batch.batch_number,
         quantity: assignFromBatch,
         price: batch.selling_price,
+        selling_price: batch.selling_price,
+        purchase_price: batch.purchase_price,
         subtotal: assignFromBatch * batch.selling_price
       });
 
