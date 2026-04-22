@@ -9,5 +9,7 @@ export const S3_CONFIG = {
   accessKeyId: 'QHNGVGKAPUUP9ZDETDZ8',           
   secretAccessKey: 'ZWTkHaedvgFhi0wLTUaQmb7bTWsiOmqS17Lw5G1P',       
   recordingsPrefix: 'recordings/',
-  logsPrefix: 'logs/',          
+  logsPrefix: 'logs/',
+  releasesPrefix: 'releases/',
+  latestReleaseManifest: 'releases/latest.json',
 };

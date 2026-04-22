@@ -739,23 +739,23 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
           >
             <View style={styles.menuDropdown}>
               <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); handleOpenPinModal(); }}>
-                <Text style={[styles.menuItemText, { color: '#f59e0b' }]}>🔑  Смена PIN</Text>
+                <Text style={[styles.menuItemText, { color: '#f59e0b' }]}>Смена PIN</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); handleOpenDiag(); }}>
-                <Text style={[styles.menuItemText, { color: '#6366f1' }]}>📊  Диагностика</Text>
+                <Text style={[styles.menuItemText, { color: '#6366f1' }]}>Диагностика</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); handleOpenUpdateModal(); }}>
-                <Text style={[styles.menuItemText, { color: '#059669' }]}>🔄  Обновление</Text>
+                <Text style={[styles.menuItemText, { color: '#059669' }]}>Обновление</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); setCameraModalVisible(true); if (savedCameraId) { loadFlipStatus(savedCameraId); } }}>
-                <Text style={[styles.menuItemText, { color: '#3b82f6' }]}>📷  Камера</Text>
+                <Text style={[styles.menuItemText, { color: '#3b82f6' }]}>Камера</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); playUnlockSignal(); }}>
-                <Text style={[styles.menuItemText, { color: '#10b981' }]}>🔓  Открыть замок</Text>
+                <Text style={[styles.menuItemText, { color: '#10b981' }]}>Открыть замок</Text>
               </TouchableOpacity>
               <View style={styles.menuDivider} />
               <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); handleLogout(); }}>
-                <Text style={[styles.menuItemText, { color: '#ef4444' }]}>🚪  Выйти</Text>
+                <Text style={[styles.menuItemText, { color: '#ef4444' }]}>Выйти</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>

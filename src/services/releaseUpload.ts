@@ -2,6 +2,9 @@ import ReactNativeBlobUtil from 'react-native-blob-util';
 import CryptoJS from 'crypto-js';
 import { S3_CONFIG } from './s3Config';
 
+const APK_CONTENT_TYPE = 'application/vnd.android.package-archive';
+const JSON_CONTENT_TYPE = 'application/json; charset=utf-8';
+
 function sha256(data: string): string {
   return CryptoJS.SHA256(data).toString(CryptoJS.enc.Hex);
 }
@@ -24,18 +27,26 @@ function getSigningKey(secretKey: string, dateStamp: string, region: string, ser
 function toAmzDate(date: Date): { amzDate: string; dateStamp: string } {
   const iso = date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   return {
-    amzDate: iso,           // 20260208T180000Z
-    dateStamp: iso.slice(0, 8), // 20260208
+    amzDate: iso,
+    dateStamp: iso.slice(0, 8),
   };
 }
 
-export async function uploadFileToS3(
+function buildPublicUrl(s3Key: string): string {
+  return `https://${S3_CONFIG.bucket}.${S3_CONFIG.endpoint}/${s3Key}`;
+}
+
+function encodeS3PathSegment(value: string): string {
+  return encodeURIComponent(value.trim()).replace(/%2F/g, '/');
+}
+
+async function uploadBinaryReleaseFile(
   filePath: string,
   s3Key: string,
+  contentType: string,
 ): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
     const { bucket, endpoint, region, accessKeyId, secretAccessKey } = S3_CONFIG;
-
 
     const exists = await ReactNativeBlobUtil.fs.exists(filePath);
     if (!exists) {
@@ -44,7 +55,6 @@ export async function uploadFileToS3(
 
     const stat = await ReactNativeBlobUtil.fs.stat(filePath);
     const fileSize = stat.size;
-
 
     const fileBase64 = await ReactNativeBlobUtil.fs.readFile(filePath, 'base64');
     const fileBytes = CryptoJS.enc.Base64.parse(fileBase64);
@@ -56,9 +66,7 @@ export async function uploadFileToS3(
     const host = `${bucket}.${endpoint}`;
     const url = `https://${host}/${s3Key}`;
     const method = 'PUT';
-    const contentType = 'video/mp4';
 
-    // Canonical headers
     const canonicalHeaders =
       `content-type:${contentType}\n` +
       `host:${host}\n` +
@@ -67,11 +75,10 @@ export async function uploadFileToS3(
 
     const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
 
-
     const canonicalRequest = [
       method,
       '/' + s3Key,
-      '',  // query string
+      '',
       canonicalHeaders,
       signedHeaders,
       contentHash,
@@ -107,23 +114,69 @@ export async function uploadFileToS3(
 
     const status = response.info().status;
     if (status >= 200 && status < 300) {
-      console.log(`S3 upload OK: ${s3Key} (${fileSize} bytes)`);
-      return { success: true, url };
+      console.log(`[Release] Upload OK: ${s3Key} (${fileSize} bytes, ${contentType})`);
+      return { success: true, url: buildPublicUrl(s3Key) };
     } else {
       const body = response.text();
-      console.error(`S3 upload failed (${status}): ${body}`);
+      console.error(`[Release] Upload failed (${status}): ${body}`);
       return { success: false, error: `HTTP ${status}: ${body}` };
     }
   } catch (error: any) {
-    console.error('S3 upload exception:', error);
+    console.error('[Release] Upload exception:', error?.message || error);
     return { success: false, error: error?.message || 'Upload failed' };
   }
 }
 
-export async function uploadTextToS3(
+export function buildReleaseApkKey(version: string, fileName: string = 'app-release.apk'): string {
+  const safeVersion = encodeS3PathSegment(version);
+  const safeFileName = encodeS3PathSegment(fileName);
+  return `${S3_CONFIG.releasesPrefix}${safeVersion}/${safeFileName}`;
+}
+
+export function buildReleaseManifestKey(version: string): string {
+  const safeVersion = encodeS3PathSegment(version);
+  return `${S3_CONFIG.releasesPrefix}${safeVersion}/manifest.json`;
+}
+
+export function getLatestReleaseManifestKey(): string {
+  return S3_CONFIG.latestReleaseManifest;
+}
+
+export function buildReleaseApkUrl(version: string, fileName: string = 'app-release.apk'): string {
+  return buildPublicUrl(buildReleaseApkKey(version, fileName));
+}
+
+export async function uploadApkReleaseToS3(
+  filePath: string,
+  version: string,
+  fileName: string = 'app-release.apk',
+): Promise<{ success: boolean; url?: string; error?: string; s3Key?: string }> {
+  const s3Key = buildReleaseApkKey(version, fileName);
+  const result = await uploadBinaryReleaseFile(filePath, s3Key, APK_CONTENT_TYPE);
+  return { ...result, s3Key };
+}
+
+export async function uploadReleaseManifestToS3(
+  filePath: string,
+  version: string,
+): Promise<{ success: boolean; url?: string; error?: string; s3Key?: string }> {
+  const s3Key = buildReleaseManifestKey(version);
+  const result = await uploadTextReleaseFile(filePath, s3Key, JSON_CONTENT_TYPE);
+  return { ...result, s3Key };
+}
+
+export async function uploadLatestReleaseManifestToS3(
+  filePath: string,
+): Promise<{ success: boolean; url?: string; error?: string; s3Key?: string }> {
+  const s3Key = getLatestReleaseManifestKey();
+  const result = await uploadTextReleaseFile(filePath, s3Key, JSON_CONTENT_TYPE);
+  return { ...result, s3Key };
+}
+
+async function uploadTextReleaseFile(
   filePath: string,
   s3Key: string,
-  contentType: string = 'text/plain; charset=utf-8',
+  contentType: string,
 ): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
     const { bucket, endpoint, region, accessKeyId, secretAccessKey } = S3_CONFIG;
@@ -145,7 +198,7 @@ export async function uploadTextToS3(
     const host = `${bucket}.${endpoint}`;
     const url = `https://${host}/${s3Key}`;
     const method = 'PUT';
-    
+
     const canonicalHeaders =
       `content-type:${contentType}\n` +
       `host:${host}\n` +
@@ -178,8 +231,6 @@ export async function uploadTextToS3(
       `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, ` +
       `SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-    console.log(`[S3] Uploading ${s3Key} (${fileSize} bytes) to ${bucket}`);
-
     const response = await ReactNativeBlobUtil.fetch(
       'PUT',
       url,
@@ -193,31 +244,16 @@ export async function uploadTextToS3(
     );
 
     const status = response.info().status;
-    console.log(`[S3] Upload response status: ${status}`);
-    
     if (status >= 200 && status < 300) {
-      const publicUrl = `https://${bucket}.${endpoint}/${s3Key}`;
-      console.log(`[S3] Upload OK: ${s3Key} (${fileSize} bytes)`);
-      return { success: true, url: publicUrl };
+      console.log(`[Release] Upload OK: ${s3Key} (${fileSize} bytes, ${contentType})`);
+      return { success: true, url: buildPublicUrl(s3Key) };
     } else {
       const body = response.text();
-      console.error(`[S3] Upload failed (${status}): ${body}`);
+      console.error(`[Release] Upload failed (${status}): ${body}`);
       return { success: false, error: `HTTP ${status}: ${body}` };
     }
   } catch (error: any) {
-    console.error('[S3] Upload exception:', error?.message || error);
+    console.error('[Release] Upload exception:', error?.message || error);
     return { success: false, error: error?.message || 'Upload failed' };
-  }
-}
-
-export async function deleteLocalFile(filePath: string): Promise<void> {
-  try {
-    const exists = await ReactNativeBlobUtil.fs.exists(filePath);
-    if (exists) {
-      await ReactNativeBlobUtil.fs.unlink(filePath);
-      console.log(`Deleted local file: ${filePath}`);
-    }
-  } catch (error) {
-    console.error(`Failed to delete file ${filePath}:`, error);
   }
 }

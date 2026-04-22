@@ -162,7 +162,7 @@ const InvoicesTab: React.FC = () => {
       <View style={styles.header}>
         <Text style={styles.title}>Партии</Text>
         <TouchableOpacity style={styles.createButton} onPress={openCreateModal}>
-          <Text style={styles.createButtonText}>+ Создать</Text>
+          <Text style={styles.createButtonText}>Создать</Text>
         </TouchableOpacity>
       </View>
 

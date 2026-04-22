@@ -82,9 +82,9 @@ android {
         applicationId "com.gomarket"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 8
-        versionName "1.0.8"
-
+        versionCode 11
+        versionName "1.0.11"
+ 
         // Imou SDK - поддерживаемые архитектуры
         ndk {
             abiFilters "armeabi-v7a", "arm64-v8a"
@@ -134,4 +134,17 @@ dependencies {
     
     // Gson - required by Imou SDK
     implementation 'com.google.code.gson:gson:2.10.1'
+}
+
+def releasePublishScript = file("${rootProject.projectDir}/../scripts/publish-release.mjs")
+
+tasks.register("publishReleaseArtifacts", Exec) {
+    workingDir rootProject.projectDir.parentFile
+    commandLine "node", releasePublishScript.absolutePath
+}
+
+afterEvaluate {
+    tasks.matching { it.name == "assembleRelease" }.configureEach {
+        finalizedBy(tasks.named("publishReleaseArtifacts"))
+    }
 }
