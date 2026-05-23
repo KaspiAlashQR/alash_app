@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, ActivityIndicator, ScrollView, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, ActivityIndicator, ScrollView, Alert, NativeModules } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { deviceStorage } from '../api/storage';
 import { DeviceInfo, Product, isApiError, isProductsResponse } from '../api/types';
 import { alashCloudAPI } from '../api/client';
 import { cartService } from '../services/cartService';
+import { deviceCommandSocket, DeviceSocketStatus } from '../services/deviceCommandSocket';
 
 import DeviceHeader from '../components/DeviceHeader';
 import CustomerProductCard from '../components/CustomerProductCard';
@@ -83,6 +84,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [cartItemCount, setCartItemCount] = useState(0);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [socketStatus, setSocketStatus] = useState<DeviceSocketStatus>(deviceCommandSocket.getStatus());
+  const unlockAlertVisibleRef = useRef(false);
 
   useEffect(() => {
     checkDeviceSetup();
@@ -102,6 +105,25 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }, 30000);
 
     return () => clearInterval(refreshInterval);
+  }, [isSetupComplete, deviceInfo]);
+
+  useEffect(() => {
+    const unsubscribeStatus = deviceCommandSocket.subscribeStatus(setSocketStatus);
+    const unsubscribeCommand = deviceCommandSocket.subscribeCommand((message) => {
+      if (message.type === 'unlock_request') {
+        handleRemoteUnlockRequest();
+      }
+    });
+
+    return () => {
+      unsubscribeStatus();
+      unsubscribeCommand();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isSetupComplete || !deviceInfo) return;
+    deviceCommandSocket.connect(deviceInfo);
   }, [isSetupComplete, deviceInfo]);
 
   const checkDeviceSetup = async () => {
@@ -165,6 +187,62 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     navigation.navigate('Cart');
   };
 
+  const playRemoteUnlockSignal = async () => {
+    if (!NativeModules.AuxModule?.playUnlockSignal) {
+      Alert.alert('Ошибка', 'Модуль открытия замка недоступен');
+      return;
+    }
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await NativeModules.AuxModule.playUnlockSignal();
+        return;
+      } catch (error) {
+        console.log(`[HomeScreen] Remote unlock attempt ${attempt} failed:`, error);
+        if (attempt < 3) {
+          await new Promise<void>(resolve => setTimeout(resolve, 1500));
+        }
+      }
+    }
+
+    Alert.alert('Ошибка', 'Не удалось открыть замок');
+  };
+
+  const handleRemoteUnlockRequest = () => {
+    if (unlockAlertVisibleRef.current) return;
+
+    unlockAlertVisibleRef.current = true;
+    Alert.alert(
+      'Открытие замка',
+      'Пришла команда открытия замка. Открыть?',
+      [
+        {
+          text: 'Отмена',
+          style: 'cancel',
+          onPress: () => {
+            unlockAlertVisibleRef.current = false;
+          },
+        },
+        {
+          text: 'Открыть',
+          onPress: async () => {
+            try {
+              await playRemoteUnlockSignal();
+            } finally {
+              unlockAlertVisibleRef.current = false;
+            }
+          },
+        },
+      ],
+      {
+        cancelable: true,
+        onDismiss: () => {
+          unlockAlertVisibleRef.current = false;
+        },
+      }
+    );
+  };
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -223,6 +301,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <DeviceHeader 
             deviceInfo={deviceInfo} 
             onAdminAccess={handleAdminAccess}
+            socketStatus={socketStatus}
+            onSocketReconnect={() => deviceCommandSocket.reconnect()}
           />
         )}
 

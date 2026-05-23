@@ -3,16 +3,19 @@ import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-nati
 import { DeviceInfo } from '../api/types';
 import { alashCloudAPI } from '../api/client';
 import { isApiError } from '../api/types';
+import { DeviceSocketStatus } from '../services/deviceCommandSocket';
 
 interface DeviceHeaderProps {
   deviceInfo: DeviceInfo;
   onAdminAccess: () => void;
+  socketStatus: DeviceSocketStatus;
+  onSocketReconnect: () => void;
 }
 
 const { width } = Dimensions.get('window');
 const isTablet = width > 600;
 
-const DeviceHeader: React.FC<DeviceHeaderProps> = ({ deviceInfo, onAdminAccess }) => {
+const DeviceHeader: React.FC<DeviceHeaderProps> = ({ deviceInfo, onAdminAccess, socketStatus, onSocketReconnect }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [temperature, setTemperature] = useState<number | null>(null);
 
@@ -66,14 +69,25 @@ const DeviceHeader: React.FC<DeviceHeaderProps> = ({ deviceInfo, onAdminAccess }
           </Text>
         )}
       </View>
-      <TouchableOpacity 
-        onPress={onAdminAccess}
-        activeOpacity={0.7}
-      >
-        <Text style={[styles.time, isTablet && styles.timeTablet]}>
-          {deviceInfo.machid}
-        </Text>
-      </TouchableOpacity>
+      <View style={styles.deviceSection}>
+        <TouchableOpacity
+          onPress={socketStatus === 'connected' ? undefined : onSocketReconnect}
+          activeOpacity={socketStatus === 'connected' ? 1 : 0.5}
+          style={[
+            styles.socketIndicator,
+            socketStatus === 'connected' ? styles.socketIndicatorConnected : styles.socketIndicatorDisconnected,
+          ]}
+        />
+        <TouchableOpacity 
+          onPress={onAdminAccess}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.time, isTablet && styles.timeTablet]}>
+            {deviceInfo.machid}
+          </Text>
+        </TouchableOpacity>
+        
+      </View>
     </View>
   );
 };
@@ -93,6 +107,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
+  },
+  deviceSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  socketIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  socketIndicatorConnected: {
+    backgroundColor: '#22c55e',
+  },
+  socketIndicatorDisconnected: {
+    backgroundColor: '#ef4444',
   },
   time: {
     fontSize: 18,

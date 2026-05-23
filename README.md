@@ -24,3 +24,9 @@ GoMarket/
 ├─ metro.config.js           # Metro bundler конфигурация
 └─ README.md                 # Документация проекта
 
+
+npx react-native run-android --mode=release
+
+cd android
+
+.\gradlew.bat assembleRelease
