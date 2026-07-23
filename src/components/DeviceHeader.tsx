@@ -57,6 +57,16 @@ const DeviceHeader: React.FC<DeviceHeaderProps> = ({ deviceInfo, onAdminAccess, 
     });
   };
 
+  const isSocketConnected =
+  socketStatus === 'connected';
+
+  const isSocketConnecting =
+    socketStatus === 'connecting';
+
+  const canReconnect =
+    socketStatus === 'disconnected' ||
+    socketStatus === 'error';
+
   return (
     <View style={styles.header}>
       <View style={styles.leftSection}>
@@ -71,11 +81,16 @@ const DeviceHeader: React.FC<DeviceHeaderProps> = ({ deviceInfo, onAdminAccess, 
       </View>
       <View style={styles.deviceSection}>
         <TouchableOpacity
-          onPress={socketStatus === 'connected' ? undefined : onSocketReconnect}
-          activeOpacity={socketStatus === 'connected' ? 1 : 0.5}
+          onPress={canReconnect ? onSocketReconnect : undefined}
+          disabled={!canReconnect}
+          activeOpacity={canReconnect ? 0.5 : 1}
           style={[
             styles.socketIndicator,
-            socketStatus === 'connected' ? styles.socketIndicatorConnected : styles.socketIndicatorDisconnected,
+            isSocketConnected
+              ? styles.socketIndicatorConnected
+              : isSocketConnecting
+                ? styles.socketIndicatorConnecting
+                : styles.socketIndicatorDisconnected,
           ]}
         />
         <TouchableOpacity 
@@ -140,6 +155,9 @@ const styles = StyleSheet.create({
   temperatureTablet: {
     fontSize: 22,
   },
+  socketIndicatorConnecting: {
+  backgroundColor: '#f59e0b',
+},
 });
 
 export default DeviceHeader;
