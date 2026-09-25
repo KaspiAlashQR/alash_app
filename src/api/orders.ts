@@ -2,6 +2,15 @@ import { API_CONFIG } from './config';
 import { GoOrderCreate, GoOrderResponse, GoOrderUpdateFields } from './types';
 import { getDeviceToken } from './storage';
 
+export interface CompletePaidOrderResponse {
+  OK: boolean;
+  order_id?: number;
+  transaction_id?: number;
+  already_processed?: boolean;
+  error?: string;
+  statusCode?: number;
+}
+
 export async function createInternalOrder(order: GoOrderCreate): Promise<GoOrderResponse> {
   try {
     const token = await getDeviceToken();
@@ -71,5 +80,53 @@ export async function updateOrder(orderId: number, fields: GoOrderUpdateFields):
     return data;
   } catch (error) {
     return { OK: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+
+export async function completePaidOrder(
+  internalOrderId: number,
+  transactionId: number
+): Promise<CompletePaidOrderResponse> {
+  try {
+    const token = await getDeviceToken();
+
+    if (!token) {
+      return {
+        OK: false,
+        error: 'Device token not found',
+      };
+    }
+
+    const response = await fetch(
+      `${API_CONFIG.BASE_URL}/go/orders/${internalOrderId}/complete-payment`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transaction_id: transactionId,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        OK: false,
+        statusCode: response.status,
+        error: data?.error || `HTTP ${response.status}`,
+      };
+    }
+
+    return data as CompletePaidOrderResponse;
+  } catch (error) {
+    return {
+      OK: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }

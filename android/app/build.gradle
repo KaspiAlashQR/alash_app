@@ -82,8 +82,8 @@ android {
         applicationId "com.gomarket"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 13
-        versionName "1.0.13"
+        versionCode 14
+        versionName "1.0.14"
  
         // Imou SDK - поддерживаемые архитектуры
         ndk {

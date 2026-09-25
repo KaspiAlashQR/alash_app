@@ -11,9 +11,10 @@ import Svg, { Path } from 'react-native-svg';
 import { RootStackParamList } from '../utils/navigation.types';
 import { alashCloudAPI } from '../api/client';
 import { cartService } from '../services/cartService';
-import { updateOrder } from '../api/orders';
-import { reduceStockFIFO } from '../api/stock';
-import { deviceStorage } from '../api/storage';
+// import { updateOrder } from '../api/orders';
+// import { reduceStockFIFO } from '../api/stock';
+// import { deviceStorage } from '../api/storage';
+import { completePaidOrder, updateOrder } from '../api/orders';
 import { CartItem } from '../api/types';
 import PaymentSuccessContent from '../components/PaymentSuccessContent';
  
@@ -76,6 +77,8 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
   const signalSentRef = useRef(false);
   const timerDoneRef = useRef(false);
   const paymentSuccessRef = useRef(false);
+  const pollInFlightRef = useRef(false);
+  const paymentProcessingRef = useRef(false);
 
   const [isCameraActive, setIsCameraActive] = useState(false);
   const { hasPermission, requestPermission } = useCameraPermission();
@@ -118,64 +121,101 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
     }, 1000) as unknown as number;
 
     const poll = async () => {
+      if (
+        pollInFlightRef.current ||
+        paymentProcessingRef.current ||
+        paymentSuccessRef.current
+      ) {
+        return;
+      }
+
+      pollInFlightRef.current = true;
+
       try {
         const response = await alashCloudAPI.checkOrder(orderId);
-        if (response && typeof response === 'object' && 'error' in response) {
-          console.warn('[Payment] checkOrder API error:', (response as any).error);
+
+        if (
+          response &&
+          typeof response === 'object' &&
+          'error' in response
+        ) {
+          console.warn(
+            '[Payment] checkOrder API error:',
+            (response as any).error
+          );
           return;
         }
 
-        if (response === true) {
-          console.log('[Payment] Payment confirmed. orderId:', orderId);
-          paymentSuccessRef.current = true;
-          clearAll();
-
-          transitionTimeoutRef.current = setTimeout(() => {
-            if (!mountedRef.current) {
-              console.log('[Payment] transitionTimeout: component unmounted, cancelling');
-              return;
-            }
-            console.log('[Payment] transitionTimeout: showing PaymentSuccessContent');
-            setShowUnlockInstruction(true);
-            setPaymentSuccess(true);
-          }, 5000) as unknown as number;
-
-          (async () => {
-            const resp = await updateOrder(internalOrderId, { status: 'paid' });
-            console.log('[Payment] updateOrder(paid) response:', JSON.stringify(resp));
-            if (!resp || resp.error) {
-              console.error('[Payment] updateOrder error:', resp && resp.error ? resp.error : resp);
-            }
-
-            try {
-              const itemsToUse = (savedCartItems.length > 0 ? savedCartItems : (cartItems || []));
-              const deviceInfo = await deviceStorage.getDeviceInfo();
-              if (deviceInfo && itemsToUse.length > 0) {
-
-                const productMap: Record<number, number> = {};
-                for (const item of itemsToUse) {
-                  const pid = item.product.product_id;
-                  if (!pid) continue;
-                  productMap[pid] = (productMap[pid] || 0) + item.quantity;
-                }
-                const stockItems = Object.entries(productMap).map(([product_id, quantity]) => ({ product_id: Number(product_id), quantity }));
-                if (stockItems.length > 0) {
-                  const stockResults = await reduceStockFIFO(deviceInfo.device_id, stockItems);
-                  const failedItems = stockResults.filter(r => !r.success);
-                  if (failedItems.length > 0) {
-                    console.error('[Payment] Stock reduction errors:', failedItems);
-                  }
-                }
-              }
-            } catch (stockError) {
-              console.error('[Payment] Stock reduction error:', stockError);
-            }
-
-
-          })();
+        if (response !== true) {
+          return;
         }
+
+        if (
+          paymentProcessingRef.current ||
+          paymentSuccessRef.current
+        ) {
+          return;
+        }
+
+        paymentProcessingRef.current = true;
+        paymentSuccessRef.current = true;
+        clearAll();
+
+        console.log(
+          '[Payment] Payment confirmed. transactionId:',
+          orderId
+        );
+
+        transitionTimeoutRef.current = setTimeout(() => {
+          if (!mountedRef.current) {
+            return;
+          }
+
+          setShowUnlockInstruction(true);
+          setPaymentSuccess(true);
+        }, 5000) as unknown as number;
+
+        void (async () => {
+          let completionResult: Awaited<
+            ReturnType<typeof completePaidOrder>
+          > | null = null;
+
+          for (let attempt = 1; attempt <= 5; attempt += 1) {
+            completionResult = await completePaidOrder(
+              internalOrderId,
+              orderId
+            );
+
+            if (completionResult.OK) {
+              console.log(
+                '[Payment] Order completed:',
+                JSON.stringify(completionResult)
+              );
+              break;
+            }
+
+            console.error(
+              `[Payment] completePaidOrder attempt ${attempt} failed:`,
+              completionResult.error
+            );
+
+            if (attempt < 5) {
+              await new Promise<void>(resolve => {
+                setTimeout(() => resolve(), attempt * 1000);
+              });
+            }
+          }
+
+          if (!completionResult?.OK) {
+            console.error(
+              '[Payment] Order payment confirmed, but stock processing failed'
+            );
+          }
+        })();
       } catch (err) {
         console.error('[Payment] Check order error:', err);
+      } finally {
+        pollInFlightRef.current = false;
       }
     };
 
