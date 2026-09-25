@@ -10,3 +10,11 @@ export function getAppVersion(): string {
   }
   return packageJson.version;
 }
+
+export function getInstalledAppVersion() {
+  const native = NativeModules.KioskModule;
+  return {
+    app_version: native?.versionName || null,
+    app_version_code: Number.isInteger(native?.versionCode) ? native.versionCode : null,
+  };
+}

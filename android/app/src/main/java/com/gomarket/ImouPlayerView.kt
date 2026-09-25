@@ -7,6 +7,7 @@ import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.uimanager.events.RCTEventEmitter
+import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.lechange.opensdk.media.LCOpenSDK_ParamReal
 import com.lechange.opensdk.media.realtime.LCOpenSDK_PlayRealWindow
 import com.lechange.opensdk.media.realtime.listener.LCOpenSDK_PlayRealListener
@@ -20,6 +21,11 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
 
     private var playWindow: LCOpenSDK_PlayRealWindow? = null
     private var isPlaying = false
+    private var isConnecting = false
+    private var generation = 0
+    private var isFinalizing = false
+    var sessionId = ""
+    private val autoPlayTask = Runnable { if (isAttachedToWindow) startPreview() }
     private var isInitialized = false
     private var isRecording = false
     private var recordFilePath: String? = null
@@ -107,10 +113,11 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
     }
 
     fun startPreview() {
+        diagnostic("preview_start_requested")
         Log.d(TAG, "========== startPreview() CALLED ==========")
         Log.d(TAG, "[STEP 0] Checking preconditions...")
 
-        if (isPlaying) {
+        if (isPlaying || isConnecting || isRecording || isFinalizing) {
             Log.w(TAG, "[STEP 0] ABORT: Preview already playing")
             return
         }
@@ -130,6 +137,12 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
         Log.d(TAG, "  - view size: ${width}x${height}")
 
         try {
+            if (isInitialized) {
+                playWindow?.uninitPlayWindow()
+                isInitialized = false
+            }
+            isConnecting = true
+            val currentGeneration = ++generation
             // STEP 1: Create PlayWindow (using LCOpenSDK_PlayRealWindow like in OpenCellWindow demo)
             Log.d(TAG, "[STEP 1] Creating LCOpenSDK_PlayRealWindow...")
             playWindow = LCOpenSDK_PlayRealWindow()
@@ -155,7 +168,10 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
                     super.onPlayBegin(winID, ctx)
                     Log.d(TAG, ">>> CALLBACK: onPlayBegin - winID=$winID")
                     post {
+                        if (generation != currentGeneration) return@post
+                        isConnecting = false
                         isPlaying = true
+                        diagnostic("play_begin")
                         sendEvent("onPlayStart", Arguments.createMap())
 
                         // Force layout update
@@ -173,7 +189,10 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
                     super.onPlayFail(winID, errorCode, errorMsg, type)
                     Log.e(TAG, ">>> CALLBACK: onPlayFail - code=$errorCode, msg=$errorMsg, type=$type")
                     post {
+                        if (generation != currentGeneration) return@post
+                        isConnecting = false
                         isPlaying = false
+                        diagnostic("play_failed", "code=$errorCode type=$type message=$errorMsg")
                         sendEvent("onError", Arguments.createMap().apply {
                             putString("code", errorCode ?: "unknown")
                             putString("error", errorMsg ?: "Play failed")
@@ -202,6 +221,14 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
                 override fun onRecordStop(winID: Int, ctx: String?, error: Int) {
                     super.onRecordStop(winID, ctx, error)
                     Log.d(TAG, ">>> CALLBACK: onRecordStop - error=$error")
+                    post {
+                        diagnostic("sdk_record_stop", "error=$error")
+                        if (generation == currentGeneration && isRecording) {
+                            isRecording = false
+                            isFinalizing = true
+                            verifyFinalized(recordFilePath ?: "", 0, -1L, 0)
+                        }
+                    }
                 }
 
                 override fun onStreamLogInfo(winID: Int, ctx: String?, logMessage: String?) {
@@ -272,6 +299,8 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
             Log.d(TAG, "========== startPreview() COMPLETED ==========")
 
         } catch (e: Exception) {
+            isConnecting = false
+            diagnostic("preview_exception", e.message ?: "Unknown error")
             Log.e(TAG, "startPreview() EXCEPTION: ${e.message}", e)
             sendEvent("onError", Arguments.createMap().apply {
                 putString("error", e.message ?: "Unknown error")
@@ -280,11 +309,15 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
     }
 
     fun stopPreview() {
+        removeCallbacks(autoPlayTask)
         try {
             stopRecord()
-            if (isPlaying) {
+            generation++
+            if (playWindow != null) {
                 playWindow?.stopRtspReal(true)
                 isPlaying = false
+                isConnecting = false
+                diagnostic("preview_stopped")
                 Log.d(TAG, "Preview stopped")
             }
         } catch (e: Exception) {
@@ -309,7 +342,7 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
             return false
         }
 
-        if (isRecording) {
+        if (isRecording || isFinalizing) {
             Log.w(TAG, "startRecord ignored: already recording")
             return true
         }
@@ -328,6 +361,7 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
             val ret = playWindow?.startRecord(path, 1, 0x7FFFFFFF) == true
             if (ret) {
                 isRecording = true
+                diagnostic("record_started", "orderId=$orderId path=$path")
                 sendEvent("onRecordStart", Arguments.createMap().apply {
                     putString("filePath", recordFilePath)
                 })
@@ -352,19 +386,20 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
         if (!isRecording) {
             return true
         }
+        isRecording = false
+        isFinalizing = true
+        val path = recordFilePath ?: ""
+        diagnostic("record_stop_requested", "path=$path")
         return try {
             val ret = playWindow?.stopRecord() == true
             if (ret) {
-                sendEvent("onRecordStop", Arguments.createMap().apply {
-                    putString("filePath", recordFilePath ?: "")
-                })
+                verifyFinalized(path, 0, -1L, 0)
             } else {
+                isFinalizing = false
                 sendEvent("onRecordError", Arguments.createMap().apply {
                     putString("error", "stopRecord failed")
                 })
             }
-            isRecording = false
-            recordFilePath = null
             ret
         } catch (e: Exception) {
             Log.e(TAG, "stopRecord exception: ${e.message}", e)
@@ -372,6 +407,7 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
                 putString("error", e.message ?: "stopRecord error")
             })
             isRecording = false
+            isFinalizing = false
             recordFilePath = null
             false
         }
@@ -395,6 +431,44 @@ class ImouPlayerView(context: Context) : FrameLayout(context) {
         val reactContext = context as? ReactContext ?: return
         reactContext.getJSModule(RCTEventEmitter::class.java)
             .receiveEvent(id, eventName, params)
+    }
+
+    fun scheduleAutoPlay() {
+        removeCallbacks(autoPlayTask)
+        postDelayed(autoPlayTask, 500)
+    }
+
+    private fun verifyFinalized(path: String, attempt: Int, previousSize: Long, stable: Int) {
+        postDelayed({
+            if (recordFilePath != path || !isFinalizing) return@postDelayed
+            val size = File(path).length()
+            val stableCount = if (size > 0L && size == previousSize) stable + 1 else 0
+            if (stableCount >= 2 && ImouModule.isValidRecording(path)) {
+                isFinalizing = false
+                recordFilePath = null
+                diagnostic("record_finalized", "path=$path bytes=$size")
+                sendEvent("onRecordStop", Arguments.createMap().apply { putString("filePath", path) })
+            } else if (attempt < 19) {
+                verifyFinalized(path, attempt + 1, size, stableCount)
+            } else {
+                isFinalizing = false
+                diagnostic("record_invalid", "path=$path bytes=$size")
+                sendEvent("onRecordError", Arguments.createMap().apply { putString("error", "MP4 finalization failed") })
+            }
+        }, 500)
+    }
+
+    private fun diagnostic(event: String, detail: String = "") {
+        val reactContext = context as? ReactContext ?: return
+        try {
+            reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit("ImouDiagnostic", Arguments.createMap().apply {
+                    putString("event", event)
+                    putString("sessionId", sessionId)
+                    putString("deviceId", deviceId)
+                    putString("detail", detail)
+                })
+        } catch (_: Exception) { }
     }
 
     override fun onDetachedFromWindow() {

@@ -20,6 +20,11 @@ class ImouPlayerViewManager : SimpleViewManager<ImouPlayerView>() {
 
     override fun getName(): String = REACT_CLASS
 
+    @ReactProp(name = "sessionId")
+    fun setSessionId(view: ImouPlayerView, sessionId: String?) {
+        view.sessionId = sessionId ?: ""
+    }
+
     override fun createViewInstance(reactContext: ThemedReactContext): ImouPlayerView {
         return ImouPlayerView(reactContext)
     }
@@ -63,7 +68,7 @@ class ImouPlayerViewManager : SimpleViewManager<ImouPlayerView>() {
     fun setAutoPlay(view: ImouPlayerView, autoPlay: Boolean) {
         if (autoPlay) {
             // Delay to ensure all props are set before starting preview
-            view.postDelayed({ view.startPreview() }, 500)
+            view.scheduleAutoPlay()
         }
     }
 

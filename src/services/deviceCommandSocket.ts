@@ -6,6 +6,7 @@ import {
 
 import { API_CONFIG } from '../api/config';
 import { DeviceInfo } from '../api/types';
+import { getInstalledAppVersion } from '../utils/version';
 
 export type DeviceSocketStatus =
   | 'connecting'
@@ -200,6 +201,12 @@ class DeviceCommandSocketService {
 
             this.setStatus('connected');
             this.startWatchdog(socket);
+            this.reportVersion(socket);
+            return;
+          }
+
+          if (message?.type === 'app_version_request') {
+            this.reportVersion(socket, message.request_id);
             return;
           }
 
@@ -252,6 +259,12 @@ class DeviceCommandSocketService {
       this.setStatus('error');
       this.scheduleReconnect();
     }
+  }
+
+  private reportVersion(socket: WebSocket, requestId?: string) {
+    const version = getInstalledAppVersion();
+    socket.send(JSON.stringify({ type: 'app_version_report', request_id: requestId, ...version }));
+    console.log('[DeviceCommandSocket] app_version_report', { requestId, ...version });
   }
 
   private failConnection(

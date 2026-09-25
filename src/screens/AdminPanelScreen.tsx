@@ -791,7 +791,7 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
             <Text style={styles.modalTitle}>Диагностика</Text>
             <View style={styles.diagModalInfo}>
               <Text style={styles.diagModalInfoText}>
-                <Text style={styles.diagModalInfoBold}>Логи с: </Text>
+                <Text style={styles.diagModalInfoBold}>Текущий запуск с: </Text>
                 {diagLogStart
                   ? (() => {
                       try {
@@ -804,12 +804,12 @@ const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({ navigation }) => {
                   : '—'}
               </Text>
               <Text style={styles.diagModalInfoText}>
-                <Text style={styles.diagModalInfoBold}>Записей: </Text>
+                <Text style={styles.diagModalInfoBold}>Записей в памяти: </Text>
                 {diagLogCount}
               </Text>
             </View>
             <Text style={styles.modalHint}>
-              Логи JS-процесса приложения за последний час. Отправить в хранилище?
+              Сохранённые логи приложения и камеры, включая прошлые запуски. Хранятся последние два файла по 2 МБ. Отправить в хранилище?
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity

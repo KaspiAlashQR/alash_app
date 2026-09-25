@@ -1,12 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, Dimensions } from 'react-native';
 // import { Camera, CameraDevice } from 'react-native-vision-camera'; // Закомментировано - фронтальная камера
 import { CartItem } from '../api/types';
-import { deviceStorage } from '../api/storage';
-import { ImouCameraView } from '../../Imou/typescript/imou';
-import type { ImouCameraViewRef } from '../../Imou/typescript/imou';
-import { imouTokenService } from '../../Imou/typescript/imou.token-service';
-import { addPendingRecording, processUploadQueue } from '../services/recordingQueue';
+import { CameraSessionPreview } from './CameraSessionHost';
 
 interface PaymentSuccessContentProps {
   unlockTimer: number;
@@ -14,8 +10,6 @@ interface PaymentSuccessContentProps {
   totalAmount: number;
   recordOrderId: number;
   showUnlockInstruction?: boolean;
-  onCameraReady?: () => void;
-  onCameraFailed?: () => void;
 }
 
 const { width } = Dimensions.get('window');
@@ -27,94 +21,9 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
   totalAmount,
   recordOrderId,
   showUnlockInstruction,
-  onCameraReady,
-  onCameraFailed,
 }) => {
   const [isBlinking, setIsBlinking] = useState(true);
 
-  const [imouCameraReady, setImouCameraReady] = useState(false);
-  const [imouDeviceId, setImouDeviceId] = useState<string>('');
-  const [imouAccessToken, setImouAccessToken] = useState<string>('');
-  const [imouPlayToken, setImouPlayToken] = useState<string>('');
-  const [imouProductId, setImouProductId] = useState<string | undefined>(undefined);
-  const [imouError, setImouError] = useState<string | null>(null);
-  const imouCameraRef = useRef<ImouCameraViewRef>(null);
-  const cameraCallbackFired = useRef(false);
-  const recordStartedRef = useRef(false);
-  const cameraTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-
-  useEffect(() => {
-    const initImouCamera = async () => {
-      try {
-        console.log('[Camera] initImouCamera: starting initialization for recordOrderId:', recordOrderId);
-        const cameraSettings = await deviceStorage.getCameraSettings();
-        if (!cameraSettings?.deviceId) {
-          console.warn('[Camera] initImouCamera: Camera not configured - deviceId missing');
-          setImouError('Камера не настроена');
-          onCameraFailed?.();
-          return;
-        }
-        console.log('[Camera] initImouCamera: device found. deviceId:', cameraSettings.deviceId);
-        setImouDeviceId(cameraSettings.deviceId);
-
-        console.log('[Camera] initImouCamera: requesting tokens from token service');
-        const { accessToken, playToken, productId } = await imouTokenService.getCameraTokens(cameraSettings.deviceId);
-        console.log('[Camera] initImouCamera: tokens received. accessToken:', !!accessToken, 'playToken:', !!playToken, 'productId:', productId);
-
-        setImouAccessToken(accessToken);
-        setImouPlayToken(playToken);
-        if (productId) setImouProductId(productId);
-        setImouCameraReady(true);
-        console.log('[Camera] initImouCamera: camera ready set to true');
-
-        // Timeout: if camera doesn't respond to onPlayStart or onError within 20 seconds, continue without it
-        cameraTimeoutRef.current = setTimeout(() => {
-          if (!cameraCallbackFired.current) {
-            console.warn('[Camera] initImouCamera: Timeout 20s - camera did not respond, continuing without it');
-            cameraCallbackFired.current = true;
-            setImouError('Камера не ответила');
-            onCameraFailed?.();
-          }
-        }, 20000);
-        console.log('[Camera] initImouCamera: timeout set for 20 seconds');
-      } catch (error: any) {
-        console.error('[Camera] initImouCamera error:', error?.message || error);
-        setImouError(error?.message || 'Ошибка инициализации');
-        onCameraFailed?.();
-      }
-    };
-
-    initImouCamera();
-
-    return () => {
-      console.log('[Camera] Cleanup: PaymentSuccessContent unmounting. recordOrderId:', recordOrderId, 'recordStarted:', recordStartedRef.current);
-      if (cameraTimeoutRef.current) {
-        console.log('[Camera] Cleanup: clearing camera timeout');
-        clearTimeout(cameraTimeoutRef.current);
-        cameraTimeoutRef.current = null;
-      }
-      if (recordStartedRef.current) {
-        console.log('[Camera] Cleanup: stopping active recording. orderId:', recordOrderId);
-        imouCameraRef.current?.stopRecord();
-        recordStartedRef.current = false;
-        console.log('[Camera] Cleanup: recording stopped on unmount');
-      }
-      if (imouCameraRef.current) {
-        console.log('[Camera] Cleanup: stopping preview');
-        imouCameraRef.current.stopPreview();
-        console.log('[Camera] Cleanup: preview stopped');
-      }
-      // Upload any pending recordings on unmount
-      console.log('[Camera] Cleanup: processing remaining uploads for orderId:', recordOrderId);
-      processUploadQueue().catch(e =>
-        console.error('[Camera] Upload queue error on unmount:', e),
-      );
-      console.log('[Camera] Cleanup: complete');
-    };
-  }, []);
-
-  
   useEffect(() => {
     const blinkInterval = setInterval(() => {
       setIsBlinking((prev) => !prev);
@@ -178,124 +87,7 @@ const PaymentSuccessContent: React.FC<PaymentSuccessContentProps> = ({
         {/* Правая часть - IMOU Камера видеонаблюдения */}
         <View style={styles.cameraContainer}>
           <View style={styles.cameraWrapper}>
-            {/* Закомментировано - фронтальная камера планшета
-            {isCameraActive && frontCamera && hasPermission && (
-              <Camera
-                style={styles.camera}
-                device={frontCamera}
-                isActive={isCameraActive}
-                photo={false}
-                video={false}
-              />
-            )}
-            */}
-            
-            {/* IMOU Камера видеонаблюдения */}
-            {imouCameraReady && imouDeviceId && imouAccessToken && imouPlayToken ? (
-              <ImouCameraView
-                ref={imouCameraRef}
-                style={styles.camera}
-                deviceId={imouDeviceId}
-                channelId={0}
-                accessToken={imouAccessToken}
-                playToken={imouPlayToken}
-                productId={imouProductId}
-                streamType={0}
-                autoPlay={true}
-                onPlayStart={() => {
-                  console.log('[Camera] onPlayStart: video stream started. deviceId:', imouDeviceId, 'recordOrderId:', recordOrderId);
-                  if (cameraTimeoutRef.current) {
-                    console.log('[Camera] onPlayStart: clearing timeout');
-                    clearTimeout(cameraTimeoutRef.current);
-                    cameraTimeoutRef.current = null;
-                  }
-                  if (!cameraCallbackFired.current) {
-                    cameraCallbackFired.current = true;
-                    console.log('[Camera] onPlayStart: calling onCameraReady callback');
-                    onCameraReady?.();
-                  }
-                  if (!recordStartedRef.current) {
-                    recordStartedRef.current = true;
-                    console.log('[Camera] onPlayStart: starting record for orderId:', recordOrderId);
-                    imouCameraRef.current?.startRecord(String(recordOrderId));
-                    console.log('[Camera] onPlayStart: record start command sent');
-                  }
-                }}
-                onPlayStop={() => {
-                  console.log('[Camera] onPlayStop: video stream stopped. recordOrderId:', recordOrderId, 'recordStarted:', recordStartedRef.current);
-                  if (recordStartedRef.current) {
-                    console.log('[Camera] onPlayStop: stopping record for orderId:', recordOrderId);
-                    imouCameraRef.current?.stopRecord();
-                    recordStartedRef.current = false;
-                    console.log('[Camera] onPlayStop: record stopped');
-                  }
-                }}
-                onRecordStart={async ({ filePath }) => {
-                  console.log('[Camera] onRecordStart: recording started. filePath:', filePath, 'recordOrderId:', recordOrderId);
-                  try {
-                    await addPendingRecording({
-                      orderId: recordOrderId,
-                      filePath,
-                      createdAt: new Date().toISOString(),
-                      uploaded: false,
-                    });
-                    console.log('[Camera] onRecordStart: recording added to queue. orderId:', recordOrderId);
-                  } catch (e) {
-                    console.error('[Camera] recordingQueue add error:', e);
-                  }
-                }}
-                onRecordStop={() => {
-                  console.log('[Camera] onRecordStop: recording stopped. orderId:', recordOrderId, 'recordStarted:', recordStartedRef.current);
-                  recordStartedRef.current = false;
-                  console.log('[Camera] onRecordStop: processing upload queue for orderId:', recordOrderId);
-                  processUploadQueue().catch(e =>
-                    console.error('[Camera] Upload queue error:', e),
-                  );
-                  console.log('[Camera] onRecordStop: upload queue processing completed');
-                }}
-                onRecordError={({ error }) => {
-                  console.error('[Camera] onRecordError: recording error. orderId:', recordOrderId, 'error:', error);
-                  console.log('[Camera] onRecordError: processing remaining uploads for orderId:', recordOrderId);
-                  processUploadQueue().catch(e =>
-                    console.error('[Camera] Upload queue error on record error:', e),
-                  );
-                }}
-                onError={(error) => {
-                  console.error('[Camera] onError: camera error triggered. recordOrderId:', recordOrderId, 'errorCode:', error?.error || error, 'recordStarted:', recordStartedRef.current);
-                  if (cameraTimeoutRef.current) {
-                    console.log('[Camera] onError: clearing timeout');
-                    clearTimeout(cameraTimeoutRef.current);
-                    cameraTimeoutRef.current = null;
-                  }
-                  // Stop any active recording before flagging error
-                  if (recordStartedRef.current) {
-                    console.log('[Camera] onError: stopping active recording due to error. orderId:', recordOrderId);
-                    imouCameraRef.current?.stopRecord();
-                    recordStartedRef.current = false;
-                  }
-                  setImouError(error.error || 'Ошибка соединения');
-                  if (!cameraCallbackFired.current) {
-                    console.log('[Camera] onError: calling onCameraFailed callback');
-                    cameraCallbackFired.current = true;
-                    onCameraFailed?.();
-                  } else {
-                    // Camera errored after playback started — unmount the broken native view
-                    // so it stops firing further events; the signal/timer flow in PaymentScreen
-                    // is already running and will handle navigation independently.
-                    console.log('[Camera] onError: callback already fired, unmounting broken camera view');
-                    setImouCameraReady(false);
-                  }
-                }}
-              />
-            ) : (
-              <View style={styles.cameraPlaceholder}>
-                {imouError ? (
-                  <Text style={styles.cameraErrorText}>{imouError}</Text>
-                ) : (
-                  <Text style={styles.cameraLoadingText}>Загрузка камеры...</Text>
-                )}
-              </View>
-            )}
+            <CameraSessionPreview orderId={recordOrderId} />
           </View>
           <Text style={styles.surveillanceText}>
             🔴 Ведется видеонаблюдение

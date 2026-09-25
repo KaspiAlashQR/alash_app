@@ -16,6 +16,7 @@ export const IMOU_STREAM_TYPE = {
 } as const;
 
 interface ImouCameraViewProps {
+  sessionId?: string;
   deviceId: string;
   channelId?: number;
   accessToken: string;
@@ -52,6 +53,7 @@ const ImouCameraView = forwardRef<ImouCameraViewRef, ImouCameraViewProps>(
   (
     {
       deviceId,
+      sessionId = '',
       channelId = 0,
       accessToken,
       playToken,
@@ -115,6 +117,7 @@ const ImouCameraView = forwardRef<ImouCameraViewRef, ImouCameraViewProps>(
         ref={nativeRef}
         style={[styles.container, style]}
         deviceId={deviceId}
+        sessionId={sessionId}
         channelId={channelId}
         accessToken={accessToken}
         playToken={playToken || ''}

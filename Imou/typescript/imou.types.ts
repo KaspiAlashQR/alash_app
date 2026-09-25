@@ -13,6 +13,7 @@ export interface SoftApWifiItem {
 }
 
 export interface ImouModuleInterface {
+  validateRecording(filePath: string): Promise<boolean>;
   initSDK(token: string): Promise<boolean>;
   initSDKWithHost(token: string, apiHost: string | null): Promise<boolean>;
   setLogLevel(level: number): void;

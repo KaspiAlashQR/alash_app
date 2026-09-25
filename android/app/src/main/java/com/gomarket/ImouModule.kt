@@ -1,6 +1,8 @@
 package com.gomarket
 
 import android.content.Context
+import android.media.MediaMetadataRetriever
+import java.io.File
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -23,6 +25,19 @@ import com.lechange.opensdk.utils.LCOpenSDK_Utils
 class ImouModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
     companion object {
+        fun isValidRecording(path: String): Boolean {
+            if (!File(path).isFile || File(path).length() == 0L) return false
+            val retriever = MediaMetadataRetriever()
+            return try {
+                retriever.setDataSource(path)
+                val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                duration > 0 && retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO) == "yes"
+            } catch (_: Exception) {
+                false
+            } finally {
+                retriever.release()
+            }
+        }
         private const val TAG = "ImouModule"
         private const val APP_ID = "lce44d2053bfc5420d"
         private const val APP_SECRET = "53ba141bde8640dfa0f12cff504e6b"
@@ -34,6 +49,11 @@ class ImouModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMo
     private var previousSsid: String? = null
 
     override fun getName(): String = "ImouModule"
+
+    @ReactMethod
+    fun validateRecording(filePath: String, promise: Promise) {
+        promise.resolve(isValidRecording(filePath))
+    }
 
     @ReactMethod
     fun initSDK(token: String, promise: Promise) {

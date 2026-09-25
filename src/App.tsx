@@ -31,6 +31,8 @@ import { KioskModule } from './utils/KioskModule';
 import { imouTokenService } from '../Imou/typescript/imou.token-service';
 import { deviceStorage } from './api/storage';
 import { startDiagnosticLogger } from './services/diagnosticLogger';
+import { CameraSessionHost } from './components/CameraSessionHost';
+import { processUploadQueue, recoverRecordings } from './services/recordingQueue';
 
 // Types
 import { RootStackParamList } from './utils/navigation.types';
@@ -44,6 +46,8 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     startDiagnosticLogger();
+    void recoverRecordings();
+    const uploadTimer = setInterval(() => { void processUploadQueue(); }, 60_000);
 
     // Проверка версии и очистка storage при обновлении
     const checkAndClearStorageOnUpdate = async () => {
@@ -84,6 +88,7 @@ function App(): React.JSX.Element {
     initImou();
 
     return () => {
+      clearInterval(uploadTimer);
       imouTokenService.stopAutoRefresh();
     };
   }, []);
@@ -192,6 +197,7 @@ function App(): React.JSX.Element {
           />
         </Stack.Navigator>
       </NavigationContainer>
+      <CameraSessionHost />
     </SafeAreaProvider>
   );
 }

@@ -1,6 +1,6 @@
 import ReactNativeBlobUtil from 'react-native-blob-util';
 import { uploadTextToS3 } from './s3Upload';
-import { getLogsAsText } from './diagnosticLogger';
+import { getDiagnosticLogsAsText } from './diagnosticLogger';
 import { S3_CONFIG } from './s3Config';
 
 function formatDateForFilename(date: Date): string {
@@ -22,7 +22,7 @@ export async function uploadDiagnostics(
   const fileName = `${timestamp}_${safeMachid}.txt`;
   const s3Key = `${S3_CONFIG.logsPrefix}${fileName}`;
 
-  const logsText = getLogsAsText();
+  const logsText = await getDiagnosticLogsAsText();
   if (!logsText) {
     return { success: false, error: 'No logs available' };
   }

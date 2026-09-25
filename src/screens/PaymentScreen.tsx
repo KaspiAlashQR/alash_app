@@ -17,6 +17,7 @@ import { cartService } from '../services/cartService';
 import { completePaidOrder, updateOrder } from '../api/orders';
 import { CartItem } from '../api/types';
 import PaymentSuccessContent from '../components/PaymentSuccessContent';
+import { cameraSession } from '../services/cameraSession';
  
 type PaymentScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Payment'>;
 type PaymentScreenRouteProp = RouteProp<RootStackParamList, 'Payment'>;
@@ -93,6 +94,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
     setPaymentAmount(total);
     setSavedCartItems(itemsToUse);
     mountedRef.current = true;
+    cameraSession.begin(internalOrderId || orderId);
     const start = Date.now();
 
     timerRef.current = setInterval(() => {
@@ -101,6 +103,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
       setRemaining(left);
       if (left <= 0) {
         clearAll();
+        cameraSession.leave(internalOrderId || orderId);
         if (!paymentSuccessRef.current) {
           (async () => {
             const resp = await updateOrder(internalOrderId, { status: 'cancelled' });
@@ -166,14 +169,10 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
           orderId
         );
 
-        transitionTimeoutRef.current = setTimeout(() => {
-          if (!mountedRef.current) {
-            return;
-          }
-
-          setShowUnlockInstruction(true);
-          setPaymentSuccess(true);
-        }, 5000) as unknown as number;
+        setPaymentSuccess(true);
+        console.log('[Payment] unlock_requested', { orderId: internalOrderId || orderId });
+        void handlePaidOrder();
+        cameraSession.paid(internalOrderId || orderId);
 
         void (async () => {
           let completionResult: Awaited<
@@ -223,6 +222,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
     poll();
 
     return () => {
+      cameraSession.leave(internalOrderId || orderId);
       mountedRef.current = false;
       clearAll();
       clearUnlockTimer();
@@ -279,34 +279,34 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
     console.log('[Payment] Camera disabled');
   };
 
-  const handleCameraCallback = async () => {
-    console.log('[Payment] handleCameraCallback: invoked. mounted:', mountedRef.current, 'signalSent:', signalSentRef.current, 'timerDone:', timerDoneRef.current, 'paymentSuccess:', paymentSuccessRef.current);
+  const handlePaidOrder = async () => {
+    console.log('[Payment] handlePaidOrder: invoked. mounted:', mountedRef.current, 'signalSent:', signalSentRef.current, 'timerDone:', timerDoneRef.current, 'paymentSuccess:', paymentSuccessRef.current);
     if (!mountedRef.current) {
-      console.log('[Payment] handleCameraCallback: component unmounted, cancelling');
+      console.log('[Payment] handlePaidOrder: component unmounted, cancelling');
       return;
     }
-    console.log('[Payment] handleCameraCallback: hiding unlock instruction and starting timer');
+    console.log('[Payment] handlePaidOrder: hiding unlock instruction and starting timer');
     setShowUnlockInstruction(false);
     startUnlockTimer();
     // playUnlockSignal manages its own retry loop and will only mark signalSent=true
     // once the signal is actually confirmed (or AuxModule is unavailable / 60s timeout).
     // It never throws, so no try/catch needed here.
-    console.log('[Payment] handleCameraCallback: calling playUnlockSignal');
+    console.log('[Payment] handlePaidOrder: calling playUnlockSignal');
     playUnlockSignal().then(() => {
-      console.log('[Payment] handleCameraCallback: playUnlockSignal returned');
+      console.log('[Payment] handlePaidOrder: playUnlockSignal returned');
     }).catch(e => {
       // Should not happen — playUnlockSignal resolves without throwing
-      console.error('[Payment] handleCameraCallback: playUnlockSignal unexpected rejection:', e);
+      console.error('[Payment] handlePaidOrder: playUnlockSignal unexpected rejection:', e);
     });
     if (!mountedRef.current) {
-      console.log('[Payment] handleCameraCallback: component unmounted before playSuccessSound, skipping');
+      console.log('[Payment] handlePaidOrder: component unmounted before playSuccessSound, skipping');
       return;
     }
     try {
-      console.log('[Payment] handleCameraCallback: playing success sound');
+      console.log('[Payment] handlePaidOrder: playing success sound');
       playSuccessSound();
     } catch (e) {
-      console.error('[Payment] handleCameraCallback: playSuccessSound error:', e);
+      console.error('[Payment] handlePaidOrder: playSuccessSound error:', e);
     }
   };
 
@@ -486,6 +486,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
       pollRef.current = null;
     }
 
+    cameraSession.leave(internalOrderId || orderId);
     const resp = await updateOrder(internalOrderId, { status: 'cancelled' });
     console.log('[Payment] updateOrder(cancelled) response:', JSON.stringify(resp));
     if (!resp || resp.error) {
@@ -543,8 +544,6 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ navigation, route }) => {
           totalAmount={paymentAmount}
           recordOrderId={internalOrderId || orderId}
           showUnlockInstruction={showUnlockInstruction}
-          onCameraReady={handleCameraCallback}
-          onCameraFailed={handleCameraCallback}
         />
       )}
     </SafeAreaView>
